@@ -1,12 +1,26 @@
 {
   "name": "community-graph",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "db:generate": "drizzle-kit generate"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "drizzle-kit": "^0.31.10"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.4",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
+    "zod": "^4.4.3"
   }
 }
