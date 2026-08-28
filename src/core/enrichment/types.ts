@@ -31,7 +31,7 @@ export interface DiscussionEnrichment {
  *   chronologically nearest segment so nothing is dropped).
  */
 export type EnrichmentOutcome =
-  | { kind: "single"; enrichment: DiscussionEnrichment; embeddingText: string }
+  | { kind: "single"; enrichment: DiscussionEnrichment; embedding: Float32Array | null }
   | { kind: "split"; segments: EnrichmentSegment[] };
 
 export interface EnrichmentSegment {
@@ -39,5 +39,5 @@ export interface EnrichmentSegment {
   blockStartAt: string;
   blockEndAt: string;
   enrichment: DiscussionEnrichment;
-  embeddingText: string;
+  embedding: Float32Array | null;
 }

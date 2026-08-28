@@ -1,4 +1,4 @@
-import type { EnrichableMessage } from "../../core/enrichment/types";
+import type { EnrichableMessage } from "./types";
 
 export const ENRICHMENT_SYSTEM_PROMPT = `Jsi analytik komunitních diskuzí. Dostaneš shluk zpráv z jednoho Discord kanálu, který
 předběžný clustering seskupil dohromady. Tvým úkolem je vytěžit z něj co nejvíc znalostí pro

@@ -131,7 +131,7 @@ export interface PersistedSegment {
  */
 export function persistSplitEnrichment(
   parent: EnrichableDiscussionRow,
-  segments: (EnrichmentSegment & { embedding: Float32Array | null })[],
+  segments: EnrichmentSegment[],
   raw: string,
 ): PersistedSegment[] {
   const now = new Date().toISOString();

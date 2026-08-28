@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { db } from "../client";
 import { jobs } from "../schema";
 
-export type JobType = "cluster";
+export type JobType = "cluster" | "enrich";
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
 export function createJob(type: JobType, channelId: string): string {
