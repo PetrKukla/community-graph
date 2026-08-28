@@ -1,6 +1,6 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../client";
-import { messages, discussionsLocal, channelCheckpoints } from "../schema";
+import { messages, discussionsLocal, discussionEnrichment, channelCheckpoints } from "../schema";
 import type { ClusterableMessage } from "../../../core/clustering/types";
 import type { FinalizedDiscussion, MessageAssignment } from "../../../core/clustering/types";
 
@@ -58,6 +58,15 @@ export interface DeleteChannelMessagesResult {
 export function deleteChannelMessages(channelId: string): DeleteChannelMessagesResult {
   return db.transaction((tx) => {
     const deletedMessages = tx.delete(messages).where(eq(messages.channelId, channelId)).returning({ id: messages.id }).all();
+    const discussionIds = tx
+      .select({ id: discussionsLocal.id })
+      .from(discussionsLocal)
+      .where(eq(discussionsLocal.channelId, channelId))
+      .all()
+      .map((r) => r.id);
+    if (discussionIds.length > 0) {
+      tx.delete(discussionEnrichment).where(inArray(discussionEnrichment.discussionId, discussionIds)).run();
+    }
     const deletedDiscussions = tx
       .delete(discussionsLocal)
       .where(eq(discussionsLocal.channelId, channelId))

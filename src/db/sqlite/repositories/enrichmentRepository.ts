@@ -192,7 +192,7 @@ function loadMessageIds(discussionId: string): string[] {
     .map((r) => r.id);
 }
 
-function loadEnrichmentRow(discussionId: string): Record<string, unknown> | null {
+export function loadEnrichmentRow(discussionId: string): Record<string, unknown> | null {
   const row = db.select().from(discussionEnrichment).where(eq(discussionEnrichment.discussionId, discussionId)).get();
   if (!row) return null;
   return {

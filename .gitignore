@@ -48,3 +48,4 @@ graphify-out/
 
 # batchify
 examples/dump/
+messages-dump.json
