@@ -17,6 +17,14 @@ const configSchema = z.object({
     model: z.string().min(1),
     dimensions: z.number().int().positive(),
   }),
+  llm: z.object({
+    provider: z.enum(["anthropic", "openai-compatible", "gemini"]),
+    model: z.string().min(1),
+    max_tokens: z.number().int().positive(),
+    temperature: z.number().min(0).max(2),
+    max_messages_per_call: z.number().int().positive(),
+    request_timeout_ms: z.number().int().positive(),
+  }),
 });
 
 export const config = configSchema.parse(toml);

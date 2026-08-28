@@ -12,3 +12,11 @@ active_subcluster_idle_minutes = 15 # po jaké neaktivitě v rámci bloku se sub
 [embedding]
 model = "Xenova/multilingual-e5-small"
 dimensions = 384
+
+[llm]
+provider = "anthropic" # anthropic | openai-compatible | gemini - kredence pro zvoleného providera se berou z .env
+model = "claude-sonnet-4-6" # název modelu u zvoleného providera
+max_tokens = 8192 # strop na délku odpovědi LLM (jedna diskuze rozdělená do mnoha segmentů může být dlouhá)
+temperature = 0.2 # ignorováno Anthropic adaptérem (modely Claude 4.5+ parametr odmítají)
+max_messages_per_call = 400 # kolik zpráv nejvýš se pošle do jedné enrichment výzvy (ochrana proti přetečení kontextu)
+request_timeout_ms = 120000 # timeout jednoho volání LLM
