@@ -15,7 +15,15 @@ slilo VÍCE nesouvisejících konverzací:
 
 Pro každý segment vyplň title, summary, topics, entities, key_points, sentiment, sentiment_score,
 language, discussion_type a resolved. Piš ve stejném jazyce, jakým je psaná diskuze (většinou česky).
-Buď konkrétní - summary a key_points mají zachytit skutečný obsah, ne jen "uživatelé něco řešili".`;
+Buď konkrétní - summary a key_points mají zachytit skutečný obsah, ne jen "uživatelé něco řešili".
+
+Pokyn pro shrnutí:
+Musí být vhodné pro vyhledávací graf. Musí obsahovat konkrétní materiální názvy (RTX 5090 místo GPU),
+kauzální řetězec událostí (např. problém → identifikace → řešení) a subjekty (kdo měl problém, kdo ho vyřešil,
+nebo kdo je chválen apod.). Naprosto klíčový je, aby summary obsahovalo informace a klíčová slova ze všech zpráv.
+Když si někdo stěžuje na Smarty, protože sou drahý a uvede příklad cen, bude ve shrnutí vše včetně příkladné ceny.
+Pokus se zhrnutí co nejvíce zkomprimovat vypuštěním duplicitních nebo zbytečných frází, aniž by došlo ke ztrátě informací.
+`;
 
 /** Renders the discussion's messages into the user turn. */
 export function buildEnrichmentUserPrompt(messages: EnrichableMessage[], maxMessages: number): string {
