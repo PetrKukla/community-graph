@@ -1,0 +1,37 @@
+{
+  "guild": { "id": "g-tricky", "name": "Testovací komunita" },
+  "channel": { "id": "c-obecna", "name": "obecna", "type": "text" },
+  "messages": [
+    { "id": "a1", "author": { "id": "u-petr", "username": "petr", "display_name": "Petr" }, "content": "Nefunguje mi zvuk po dnešní aktualizaci Arch Linuxu, nevíte někdo proč?", "created_at": "2026-08-20T09:00:00.000Z", "attachments_count": 0 },
+    { "id": "a2", "author": { "id": "u-jana", "username": "jana" }, "content": "Zkoušel jsi zkontrolovat, jestli běží pipewire nebo pulseaudio service?", "created_at": "2026-08-20T09:01:10.000Z" },
+    { "id": "a3", "author": { "id": "u-petr", "username": "petr" }, "content": "Jo běží, ale v nastavení zvuku nevidím žádné výstupní zařízení.", "created_at": "2026-08-20T09:02:20.000Z" },
+    { "id": "a4", "author": { "id": "u-david", "username": "david" }, "content": "Měl jsem podobný problém, pomohlo mi reinstalovat celý alsa-utils balíček.", "created_at": "2026-08-20T09:03:30.000Z" },
+    { "id": "a5", "author": { "id": "u-petr", "username": "petr" }, "content": "Díky, zkusím to a dám vědět jestli to pomohlo.", "created_at": "2026-08-20T09:05:00.000Z" },
+    { "id": "a6", "author": { "id": "u-petr", "username": "petr" }, "content": "Díky, už mi to hraje, byl to nakonec problém s pulseaudio.", "created_at": "2026-08-20T09:06:15.000Z" },
+
+    { "id": "b1", "author": { "id": "u-jana", "username": "jana" }, "content": "Dočetla jsem novou knížku od Adriana Tchaikovského a je fakt skvělá.", "created_at": "2026-08-20T10:00:00.000Z" },
+    { "id": "f1", "author": { "id": "u-david", "username": "david" }, "content": "Viděli jste výsledek včerejšího zápasu, byl to fakt masakr.", "created_at": "2026-08-20T10:00:40.000Z" },
+    { "id": "b2", "author": { "id": "u-marek", "username": "marek" }, "content": "Jakou knížku, ten jeho Děti času je famózní série.", "created_at": "2026-08-20T10:01:20.000Z" },
+    { "id": "f2", "author": { "id": "u-eva", "username": "eva" }, "content": "Jo, tři branky ve druhém poločase, nikdo to nečekal.", "created_at": "2026-08-20T10:02:00.000Z" },
+    { "id": "c1", "author": { "id": "u-jana", "username": "jana" }, "content": "Založila jsem vlákno, hlasujte prosím jakou knihu vybereme příště.", "created_at": "2026-08-20T10:02:30.000Z", "thread_id": "th-bookclub" },
+    { "id": "b3", "author": { "id": "u-jana", "username": "jana" }, "content": "Přesně tu, pokračování je ještě lepší než první díl.", "created_at": "2026-08-20T10:02:40.000Z" },
+    { "id": "f3", "author": { "id": "u-tomas", "username": "tomas" }, "content": "Trenér po zápase říkal, že jsou spokojení s formou týmu.", "created_at": "2026-08-20T10:03:20.000Z" },
+    { "id": "b4", "author": { "id": "u-marek", "username": "marek" }, "content": "Díky za tip", "created_at": "2026-08-20T10:04:00.000Z" },
+    { "id": "f4", "author": { "id": "u-eva", "username": "eva" }, "content": "Přeju další zápas už v sobotu.", "created_at": "2026-08-20T10:04:40.000Z", "mentions": ["u-tomas"] },
+    { "id": "c2", "author": { "id": "u-marek", "username": "marek" }, "content": "Já bych dal hlas Dětem času, už jsme o tom mluvili.", "created_at": "2026-08-20T10:05:00.000Z", "thread_id": "th-bookclub" },
+    { "id": "f5", "author": { "id": "u-tomas", "username": "tomas" }, "content": "Snad udrží formu i do dalšího kola.", "created_at": "2026-08-20T10:05:20.000Z" },
+    { "id": "b5", "author": { "id": "u-marek", "username": "marek" }, "content": "Už se těším, až si to přečte i moje sestra.", "created_at": "2026-08-20T10:06:00.000Z" },
+    { "id": "c3", "author": { "id": "u-eva", "username": "eva" }, "content": "Souhlasím, zní to dobře", "created_at": "2026-08-20T10:08:00.000Z", "thread_id": "th-bookclub" },
+
+    { "id": "d1", "author": { "id": "u-eva", "username": "eva" }, "content": "Začal Steam letní výprodej, hry jsou zlevněné až o 80 procent.", "created_at": "2026-08-21T09:00:00.000Z" },
+    { "id": "d2", "author": { "id": "u-tomas", "username": "tomas" }, "content": "Koukal jsem, konečně si koupím tu hru co jsem chtěl loni.", "created_at": "2026-08-21T09:01:00.000Z" },
+
+    { "id": "d3", "author": { "id": "u-petr", "username": "petr" }, "content": "Už jsem to nakonec taky vyřešil stejným způsobem, díky.", "created_at": "2026-08-21T09:35:00.000Z", "reply_to_message_id": "a3" },
+
+    { "id": "d4", "author": { "id": "u-jana", "username": "jana" }, "content": "Mimochodem slyšeli jste, že ty knížky od Tchaikovského chystají seriál?", "created_at": "2026-08-21T10:10:00.000Z", "reply_to_message_id": "b1" },
+    { "id": "d5", "author": { "id": "u-marek", "username": "marek" }, "content": "Jo, četl jsem o tom, prej to bude na Apple TV.", "created_at": "2026-08-21T10:10:40.000Z", "reply_to_message_id": "b1" },
+    { "id": "d6", "author": { "id": "u-david", "username": "david" }, "content": "Tak snad to nezkazí jako obvykle bývá u adaptací knížek.", "created_at": "2026-08-21T10:11:30.000Z" },
+    { "id": "d7", "author": { "id": "u-eva", "username": "eva" }, "content": "Vrátíme se ke Steamu, máte už nějaký wishlist naplněný?", "created_at": "2026-08-21T10:12:30.000Z" },
+    { "id": "d8", "author": { "id": "u-petr", "username": "petr" }, "content": "Mrknu na to večer.", "created_at": "2026-08-21T10:13:00.000Z" }
+  ]
+}
