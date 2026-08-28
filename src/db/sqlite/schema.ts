@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, blob, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, blob, index } from "drizzle-orm/sqlite-core";
 
 export const guilds = sqliteTable("guilds", {
   id: text("id").primaryKey(),
@@ -96,11 +96,36 @@ export const discussionsLocal = sqliteTable(
     threadId: text("thread_id"),
     blockStartAt: text("block_start_at").notNull(),
     blockEndAt: text("block_end_at").notNull(),
-    status: text("status").notNull().default("clustering"), // clustering|needs_reenrichment|enriched|written
+    status: text("status").notNull().default("clustering"), // clustering|needs_reenrichment|enriched|split|written
     messageCount: integer("message_count").notNull().default(0),
     centroidEmbedding: blob("centroid_embedding", { mode: "buffer" }),
     continuationOfDiscussionId: text("continuation_of_discussion_id"),
     continuationReason: text("continuation_reason"), // explicit_reply|semantic_similarity (semantic_similarity: fáze c, zatím nevyužito)
+    // set on child rows produced when the LLM splits a discussion into smaller ones (krok 7);
+    // the parent keeps status = 'split' and its messages are re-pointed to the children.
+    parentDiscussionId: text("parent_discussion_id"),
   },
-  (table) => [index("idx_discussions_channel_block").on(table.channelId, table.blockEndAt)],
+  (table) => [
+    index("idx_discussions_channel_block").on(table.channelId, table.blockEndAt),
+    index("idx_discussions_parent").on(table.parentDiscussionId),
+  ],
 );
+
+export const discussionEnrichment = sqliteTable("discussion_enrichment", {
+  discussionId: text("discussion_id")
+    .primaryKey()
+    .references(() => discussionsLocal.id),
+  title: text("title"),
+  summary: text("summary"),
+  topics: text("topics", { mode: "json" }).$type<string[]>(),
+  entities: text("entities", { mode: "json" }).$type<{ name: string; type: string }[]>(),
+  keyPoints: text("key_points", { mode: "json" }).$type<string[]>(),
+  sentiment: text("sentiment"), // positive|neutral|negative|mixed
+  sentimentScore: real("sentiment_score"),
+  language: text("language"),
+  discussionType: text("discussion_type"), // question|help-request|discussion|announcement|off-topic|banter|other
+  resolved: integer("resolved", { mode: "boolean" }),
+  embedding: blob("embedding", { mode: "buffer" }), // discussion-level embedding of "title. summary. topics" (pro fázi c / Neo4j)
+  rawLlmResponse: text("raw_llm_response"), // celá odpověď LLM, pro audit/ladění promptu
+  enrichedAt: text("enriched_at").notNull(),
+});
