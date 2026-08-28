@@ -35,3 +35,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # AI
 .mcp.json
+
+# local SQLite data
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Graphify
+graphify-out/
