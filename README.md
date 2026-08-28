@@ -241,6 +241,11 @@ a uloží se k jejímu enrichmentu — připravený pro krok 3 (Neo4j vektorový
 Job nikdy nespadne kvůli jedné diskuzi — chyby se sbírají do pole `errors` ve výsledku jobu
 (`failedCount`, `{ discussionId, error }`), zbytek se zpracuje dál.
 
+**Logování.** Každý požadavek na LLM se vypisuje do konzole serveru — provider/model, id diskuze,
+celý system i user prompt a po dokončení celá odpověď modelu s dobou trvání (řádky `[llm →]` /
+`[llm ←]` / `[llm ✗]`). Dělá to wrapper `LoggingLLMProvider` kolem zvoleného adaptéru
+(`src/adapters/llm/`), takže logují všichni provideři stejně.
+
 **Re-enrichment.** Když je diskuze ve stavu `needs_reenrichment` (clusterizace do ní mezitím
 dopsala zprávy), předchozí běh se před novým enrichmentem zahodí: případné dětské diskuze se
 zruší, jejich zprávy se vrátí zpět k rodiči a smažou se staré `discussion_enrichment` řádky.

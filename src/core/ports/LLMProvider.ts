@@ -9,6 +9,8 @@ export interface LLMStructuredRequest<T> {
   schema: z.ZodType<T>;
   /** Short identifier for the schema, used where a provider wants a named JSON schema (OpenAI, Gemini). */
   schemaName: string;
+  /** Optional human-readable context (e.g. the discussion id) for logging - not sent to the model. */
+  context?: string;
 }
 
 export interface LLMStructuredResult<T> {

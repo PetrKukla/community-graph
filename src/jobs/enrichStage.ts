@@ -53,6 +53,7 @@ export async function enrichChannel(
       }
 
       const { outcome, raw } = await enrichDiscussion({
+        discussionId: row.id,
         messages,
         llm,
         embeddingProvider,

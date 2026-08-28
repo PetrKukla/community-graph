@@ -4,10 +4,11 @@ import type { LLMProvider } from "../../core/ports/LLMProvider";
 import { AnthropicLLMAdapter } from "./AnthropicLLMAdapter";
 import { OpenAICompatibleLLMAdapter } from "./OpenAICompatibleLLMAdapter";
 import { GeminiLLMAdapter } from "./GeminiLLMAdapter";
+import { LoggingLLMProvider } from "./LoggingLLMProvider";
 
 let cached: LLMProvider | null = null;
 
-function build(): LLMProvider {
+function buildAdapter(): LLMProvider {
   const { provider, model, max_tokens, temperature, request_timeout_ms } = config.llm;
 
   switch (provider) {
@@ -37,6 +38,6 @@ function build(): LLMProvider {
 
 /** Returns the LLMProvider selected in config.toml, constructed once per process. */
 export function getLLMProvider(): LLMProvider {
-  cached ??= build();
+  cached ??= new LoggingLLMProvider(buildAdapter(), `${config.llm.provider}/${config.llm.model}`);
   return cached;
 }

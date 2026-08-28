@@ -5,6 +5,7 @@ import { enrichmentResponseSchema, type EnrichmentSegmentRaw } from "./schemas";
 import type { DiscussionEnrichment, EnrichableMessage, EnrichmentOutcome, EnrichmentSegment } from "./types";
 
 export interface EnrichDiscussionParams {
+  discussionId: string; // for logging only
   messages: EnrichableMessage[]; // chronological
   llm: LLMProvider;
   embeddingProvider: EmbeddingProvider;
@@ -95,13 +96,14 @@ async function embed(provider: EmbeddingProvider, texts: string[]): Promise<(Flo
  * even if the LLM listed only some message ids.
  */
 export async function enrichDiscussion(params: EnrichDiscussionParams): Promise<EnrichDiscussionResult> {
-  const { messages, llm, embeddingProvider, maxMessagesPerCall } = params;
+  const { discussionId, messages, llm, embeddingProvider, maxMessagesPerCall } = params;
 
   const { value, raw } = await llm.generateStructured({
     system: ENRICHMENT_SYSTEM_PROMPT,
     user: buildEnrichmentUserPrompt(messages, maxMessagesPerCall),
     schema: enrichmentResponseSchema,
     schemaName: "discussion_enrichment",
+    context: `discussion=${discussionId} (${messages.length} zpráv)`,
   });
 
   const segments = value.segments;
