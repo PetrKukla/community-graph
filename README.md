@@ -13,18 +13,26 @@ zvlášť pořádně vyladit:
 2. **AI enrichment** — každá diskuze se prožene přes LLM (topic, entity, sentiment, shrnutí, key
    points...), který ji zároveň může rozdělit na menší diskuze. Výsledek se ukládá do SQLite a jde
    vytáhnout přes API. *(hotovo, popsané níže)*
-3. **graph write** — obohacené diskuze se zapíšou do Neo4j jako graf. *(zatím neimplementováno)*
+3. **graph write** — obohacené diskuze se zapíšou do Neo4j jako idempotentní knowledge graph
+   (uzly `User`/`Channel`/`Discussion`/`Topic`/`Entity` a vazby mezi nimi). *(hotovo, popsané níže)*
 
 Podrobný návrh celého projektu (architektura, zdůvodnění rozhodnutí, budoucí kroky) je v
 [`PLAN.md`](./PLAN.md).
 
 ## Jak to spustit
 
-Vyžaduje [Bun](https://bun.com) (testováno na `1.3.x`). Neo4j zatím není potřeba. Krok 1
-(clusterizace) běží čistě nad lokálním SQLite souborem a lokálním embedding modelem. Krok 2
-(AI enrichment) potřebuje přístup k nějakému LLM — buď Anthropic/Gemini API klíč, nebo
-lokální OpenAI-kompatibilní server (Ollama, vLLM, LM Studio, vlastní systém). Volí se
-v `config.toml` (`[llm] provider`), kredence jdou do `.env`.
+Vyžaduje [Bun](https://bun.com) (testováno na `1.3.x`). Krok 1 (clusterizace) běží čistě nad
+lokálním SQLite souborem a lokálním embedding modelem. Krok 2 (AI enrichment) potřebuje přístup
+k nějakému LLM — buď Anthropic/Gemini API klíč, nebo lokální OpenAI-kompatibilní server (Ollama,
+vLLM, LM Studio, vlastní systém); volí se v `config.toml` (`[llm] provider`), kredence jdou do
+`.env`. Krok 3 (graph write) potřebuje běžící Neo4j — nejjednodušší přes přiložený compose:
+
+```bash
+docker compose up -d neo4j   # Neo4j Browser na http://localhost:7474, Bolt na 7687
+```
+
+Kroky 1 a 2 běží i bez Neo4j; když není nastavené `NEO4J_PASSWORD`, spadne jen `graph-write` job
+(s jasnou hláškou) a `/health` hlásí `neo4j: "not_configured"`.
 
 ```bash
 bun install
@@ -78,9 +86,12 @@ Projekt používá dvě oddělené vrstvy konfigurace:
 | `LLM_OPENAI_COMPATIBLE_BASE_URL` | Base URL OpenAI-kompatibilního serveru (např. `http://localhost:11434/v1`). Potřeba jen když `provider = "openai-compatible"`. |
 | `LLM_OPENAI_COMPATIBLE_API_KEY` | Klíč pro ten server, pokud ho vyžaduje (lokální Ollama/LM Studio většinou ne — nech prázdné). |
 | `LLM_GEMINI_API_KEY` | API klíč pro Google Gemini. Potřeba jen když `provider = "gemini"`. |
+| `NEO4J_URI` | Bolt URI Neo4j (výchozí `bolt://localhost:7687`). Jen pro krok 3. |
+| `NEO4J_USER` | Uživatel Neo4j (výchozí `neo4j`). Jen pro krok 3. |
+| `NEO4J_PASSWORD` | Heslo Neo4j (v `docker-compose.yml` je `community-graph-dev`). Bez něj `graph-write` job skončí `failed`. |
 
-Vyplňuj vždy jen klíče pro providera zvoleného v `config.toml`. Když chybí, `POST /enrich` job
-skončí stavem `failed` s jasnou hláškou.
+Vyplňuj vždy jen klíče pro providera zvoleného v `config.toml`. Když chybí LLM klíč, `POST /enrich`
+job skončí stavem `failed` s jasnou hláškou; totéž `POST /graph-write` bez `NEO4J_PASSWORD`.
 
 ### `config.toml`
 
@@ -132,8 +143,8 @@ Po změně `config.toml` stačí server restartovat (soubor se čte jen při sta
 ## Datový model (SQLite, `src/db/sqlite/schema.ts`)
 
 - `guilds`, `channels`, `users` — základní entity z Discordu.
-- `messages` — syrové zprávy. Sloupec `processed` (0/1) říká, jestli už zpráva prošla
-  clusterizací; `discussion_id` ukazuje, do které diskuze patří.
+- `messages` — syrové zprávy. Sloupec `processed` (`0` raw → `1` clustered → `3` zapsáno do grafu);
+  `discussion_id` ukazuje, do které diskuze patří.
 - `ingestion_batches` — evidence jednotlivých `POST /batches` volání (počty vložených/duplicitních zpráv).
 - `discussions_local` — clustery vytvořené krokem 1 (staging před AI enrichmentem a zápisem do
   grafu). Sloupec `parent_discussion_id` je vyplněný u „dětských“ diskuzí, které vznikly tím, že
@@ -142,7 +153,9 @@ Po změně `config.toml` stačí server restartovat (soubor se čte jen při sta
   `entities`, `key_points`, `sentiment` (+ skóre), `language`, `discussion_type`, `resolved`,
   diskuzní embedding (pro krok 3 / Neo4j) a `raw_llm_response` pro ladění promptu.
 - `channel_checkpoints` — informativní evidence, kam clusterizace v daném kanálu chronologicky došla.
-- `jobs` — stav jednotlivých asynchronních běhů (typ `cluster` nebo `enrich`).
+- `jobs` — stav jednotlivých asynchronních běhů (typ `cluster`, `enrich` nebo `graph_write`).
+
+Neo4j je jediný „výstupní“ store — SQLite drží syrová data a mezistavy, Neo4j hotový graf.
 
 ## Jak funguje clusterizace (krok 1)
 
@@ -211,7 +224,8 @@ je přesně počet takto vynechaných zpráv).
 - **`split`** — LLM tuhle diskuzi rozdělil na menší. Sama už nenese žádné zprávy (ty se
   přesunuly do dětských diskuzí s `parent_discussion_id` = její id) a slouží jen jako rodičovský
   uzel. Enrichment je na dětských diskuzích.
-- `written` — cílový stav kroku 3 (graph write), zatím se nenastavuje.
+- **`written`** — diskuze byla zapsaná do Neo4j (krok 3). Její zprávy mají `processed = 3`.
+  `graph-write` už ji přeskakuje, takže opakované spuštění nic nezdvojnásobí.
 
 ## Jak funguje AI enrichment (krok 2)
 
@@ -251,6 +265,49 @@ zvoleného adaptéru (`src/adapters/llm/`), takže logují všichni provideři s
 dopsala zprávy), předchozí běh se před novým enrichmentem zahodí: případné dětské diskuze se
 zruší, jejich zprávy se vrátí zpět k rodiči a smažou se staré `discussion_enrichment` řádky.
 Pak se diskuze obohatí načisto.
+
+## Jak funguje graph write (krok 3)
+
+`POST /api/v1/channels/:id/graph-write` spustí job, který vezme diskuze kanálu ve stavu
+`enriched` (tedy i „dětské“ diskuze ze split; rodiče se stavem `split` se přeskakují) a jednu po
+druhé zapíše do Neo4j. Při prvním volání se v Neo4j vytvoří constraints a vektorový index
+(idempotentně, `IF NOT EXISTS`).
+
+Každá diskuze se zapisuje v jedné transakci samými `MERGE … ON CREATE SET / ON MATCH SET`, takže
+opakované volání nikdy nevytvoří duplicitní uzly. Počítadla (`discussion_count`, `mention_count`,
+`COOCCURS_WITH.count`, `INTERESTED_IN.weight`) jsou bezpečná díky tomu, že se diskuze po zápisu
+označí `written` a příště se přeskočí — každá tak přispěje do počítadel právě jednou.
+
+### Uzly
+
+| Label | Klíč | Vlastnosti |
+|---|---|---|
+| `User` | `id` | `username`, `display_name`, `first_seen_at`, `last_seen_at`, `message_count` |
+| `Channel` | `id` | `name`, `guild_id` |
+| `Discussion` | `id` | `channel_id`, `started_at`, `ended_at`, `message_count`, `participant_count`, `title`, `summary`, `topics[]` (denormalizované), `sentiment`, `sentiment_score`, `language`, `discussion_type`, `resolved`, `embedding` (vektorový index `discussion_embedding_idx`, dimenze = `config.toml` → `embedding.dimensions`) |
+| `Topic` | `name` (kanonizované: trim, sražené mezery, dedup case-insensitive) | `discussion_count`, `created_at` |
+| `Entity` | `key` = `typ:název` | `name`, `type` (lowercase, `person`/`product`/`technology`/`organization`/`place`/`event`/`other`), `mention_count`, `created_at` |
+
+### Hrany
+
+| Hrana | Vlastnosti | Poznámka |
+|---|---|---|
+| `(User)-[:PARTICIPATED_IN]->(Discussion)` | `message_count`, `first_message_at`, `last_message_at` | agregace nad `messages` dané diskuze |
+| `(Discussion)-[:OCCURRED_IN]->(Channel)` | — | |
+| `(Discussion)-[:DISCUSSES]->(Topic)` | — | |
+| `(Discussion)-[:MENTIONS]->(Entity)` | `count` | |
+| `(Topic)-[:COOCCURS_WITH]->(Topic)` | `count`, `last_seen_at` | vytvořeno v abecedním pořadí názvů, aby nevznikla opačná duplicitní hrana; přeskočí se, když má diskuze > 12 topiců |
+| `(Entity)-[:COOCCURS_WITH]->(Entity)` | `count`, `last_seen_at` | totéž podle `key` |
+| `(User)-[:INTERESTED_IN]->(Topic)` | `weight`, `discussion_count`, `last_interaction_at` | pro každého účastníka × každý topic diskuze; `weight += ` počet jeho zpráv v té diskuzi |
+| `(Discussion)-[:CONTINUATION_OF]->(Discussion)` | `reason`, `similarity_score`, `created_at` | novější → starší; zatím jen `reason = 'explicit_reply'` z clusteringu (Discord reply do už zapsané diskuze). Sémantické navazování přes vektorový index je až v dalším kroku. |
+
+Job nikdy nespadne kvůli jedné diskuzi — chyby jdou do pole `errors` ve výsledku jobu, zbytek se
+zapíše dál.
+
+**Zatím zjednodušené oproti PLAN.md:** kanonizace topiců/entit je jen přesná shoda po normalizaci
+názvu (žádné slučování podobných přes embedding index) a `Topic`/`Entity` uzly nedostávají
+`embedding`/`category`. Posun `channel_checkpoints` a sémantické `CONTINUATION_OF` patří k dalšímu
+kroku (inkrementální korektnost).
 
 ## HTTP API
 
@@ -331,6 +388,39 @@ Nepovinné tělo `{ "max_discussions": 20 }` omezí, kolik diskuzí se obohatí 
   "failedCount": 0,
   "errors": []
 }
+```
+
+### `POST /api/v1/channels/:id/graph-write`
+
+Zapíše obohacené diskuze kanálu (stav `enriched`) do Neo4j. Vrací `202` s `job_id`, průběh přes
+`GET /api/v1/jobs/:id`. Nepovinné tělo `{ "max_discussions": 20 }`.
+
+```bash
+curl -X POST http://localhost:3003/api/v1/channels/c1/graph-write \
+  -H "X-API-Key: <tvůj API_KEY>" -H "Content-Type: application/json" -d '{}'
+```
+
+```json
+{ "job_id": "...", "type": "graph_write", "status": "queued" }
+```
+
+Výsledek jobu:
+
+```json
+{
+  "writtenDiscussionCount": 10,
+  "skippedNoEnrichmentCount": 0,
+  "failedCount": 0,
+  "errors": []
+}
+```
+
+Kontrola v Neo4j Browseru (`http://localhost:7474`):
+
+```cypher
+MATCH (d:Discussion)-[:OCCURRED_IN]->(c:Channel) RETURN d, c LIMIT 25;
+MATCH (u:User)-[r:INTERESTED_IN]->(t:Topic) RETURN u.username, t.name, r.weight ORDER BY r.weight DESC LIMIT 20;
+MATCH (t1:Topic)-[r:COOCCURS_WITH]->(t2:Topic) RETURN t1.name, t2.name, r.count ORDER BY r.count DESC LIMIT 20;
 ```
 
 ### `GET /api/v1/discussions/:id/enrichment`
@@ -416,8 +506,8 @@ Seznam jobů, volitelně filtrovaný.
 
 ### `GET /api/v1/channels/:id/discussions?status=`
 
-Debug/inspekční endpoint pro ruční kontrolu výsledku clusterizace — ukáže diskuze daného kanálu
-včetně jejich zpráv, bez nutnosti cokoliv dalšího mít zapnuté (Neo4j v této fázi ještě neexistuje).
+Debug/inspekční endpoint pro ruční kontrolu výsledku clusterizace a enrichmentu — ukáže diskuze
+daného kanálu včetně jejich zpráv a `enrichment` bloku, bez nutnosti mít zapnuté Neo4j.
 
 ```bash
 curl http://localhost:3003/api/v1/channels/c1/discussions -H "X-API-Key: <tvůj API_KEY>"
@@ -462,10 +552,12 @@ curl -X DELETE http://localhost:3003/api/v1/channels/c1/messages -H "X-API-Key: 
 
 ### `GET /health`
 
-Bez autentizace. Ověří dostupnost SQLite.
+Bez autentizace. Ověří SQLite a (pokud je nastavené `NEO4J_PASSWORD`) i Neo4j. `503` jen když
+selže SQLite — Neo4j je informativní.
 
 ```bash
 curl http://localhost:3003/health
+# { "status": "ok", "sqlite": "ok", "neo4j": "ok" | "not_configured" | "<chyba>" }
 ```
 
 ## Doporučený postup ladění
@@ -480,3 +572,7 @@ curl http://localhost:3003/health
    počkej na job a projdi si výsledky přes `GET /channels/:id/discussions` nebo
    `GET /discussions/:id/enrichment`. Podle kvality dolaď prompt (`src/core/enrichment/prompt.ts`)
    nebo model/providera v `config.toml` a spusť znovu.
+6. `docker compose up -d neo4j`, pak `POST /channels/:id/graph-write` a v Neo4j Browseru
+   (`http://localhost:7474`) si graf projdi dotazy z popisu kroku 3 výše. Když chceš přepsat od
+   nuly, smaž graf (`MATCH (n) DETACH DELETE n`) a v SQLite vrať diskuze ze stavu `written` zpět
+   na `enriched` (nebo celý kanál přes `DELETE /api/v1/channels/:id/messages` a projdi kroky znovu).
