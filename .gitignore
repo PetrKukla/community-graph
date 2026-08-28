@@ -44,3 +44,6 @@ data/
 
 # Graphify
 graphify-out/
+
+# batchify
+examples/dump/

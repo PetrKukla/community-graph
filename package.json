@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
+    "convert": "bun run src/tools/batchify/cli.ts",
     "db:generate": "drizzle-kit generate"
   },
   "devDependencies": {
