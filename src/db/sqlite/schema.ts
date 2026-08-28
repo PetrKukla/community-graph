@@ -1,0 +1,106 @@
+import { sqliteTable, text, integer, blob, index } from "drizzle-orm/sqlite-core";
+
+export const guilds = sqliteTable("guilds", {
+  id: text("id").primaryKey(),
+  name: text("name"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const channels = sqliteTable("channels", {
+  id: text("id").primaryKey(),
+  guildId: text("guild_id").references(() => guilds.id),
+  name: text("name"),
+  type: text("type"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  username: text("username"),
+  displayName: text("display_name"),
+  firstSeenAt: text("first_seen_at").notNull(),
+  lastSeenAt: text("last_seen_at").notNull(),
+  messageCount: integer("message_count").notNull().default(0),
+});
+
+export const ingestionBatches = sqliteTable("ingestion_batches", {
+  id: text("id").primaryKey(),
+  channelId: text("channel_id")
+    .notNull()
+    .references(() => channels.id),
+  receivedAt: text("received_at").notNull(),
+  messageCount: integer("message_count").notNull(),
+  insertedCount: integer("inserted_count").notNull(),
+  duplicateCount: integer("duplicate_count").notNull(),
+});
+
+export const messages = sqliteTable(
+  "messages",
+  {
+    id: text("id").primaryKey(), // Discord message id
+    channelId: text("channel_id").notNull(),
+    guildId: text("guild_id"),
+    authorId: text("author_id").notNull(),
+    content: text("content").notNull(),
+    createdAt: text("created_at").notNull(), // ISO8601
+    replyToMessageId: text("reply_to_message_id"),
+    threadId: text("thread_id"),
+    mentions: text("mentions", { mode: "json" }).$type<string[]>(),
+    attachmentsCount: integer("attachments_count").notNull().default(0),
+    wordCount: integer("word_count").notNull(),
+    batchId: text("batch_id").references(() => ingestionBatches.id),
+    ingestedAt: text("ingested_at").notNull(),
+    processed: integer("processed").notNull().default(0), // 0=raw 1=clustered 2=enriched 3=graph-written
+    discussionId: text("discussion_id"),
+  },
+  (table) => [
+    index("idx_messages_channel_time").on(table.channelId, table.createdAt),
+    index("idx_messages_thread").on(table.threadId),
+    index("idx_messages_reply_to").on(table.replyToMessageId),
+    index("idx_messages_processed").on(table.processed),
+    index("idx_messages_discussion").on(table.discussionId),
+  ],
+);
+
+export const channelCheckpoints = sqliteTable("channel_checkpoints", {
+  channelId: text("channel_id").primaryKey(),
+  lastClosedBlockEndAt: text("last_closed_block_end_at"),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const jobs = sqliteTable(
+  "jobs",
+  {
+    id: text("id").primaryKey(),
+    type: text("type").notNull(), // cluster|enrich|graph_write (full_pipeline: budoucí zřetězení, není v1)
+    status: text("status").notNull().default("pending"), // pending|running|completed|failed
+    channelId: text("channel_id"),
+    progressCurrent: integer("progress_current").notNull().default(0),
+    progressTotal: integer("progress_total").notNull().default(0),
+    result: text("result", { mode: "json" }).$type<Record<string, unknown>>(),
+    error: text("error"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    startedAt: text("started_at"),
+    finishedAt: text("finished_at"),
+  },
+  (table) => [index("idx_jobs_channel_type").on(table.channelId, table.type)],
+);
+
+export const discussionsLocal = sqliteTable(
+  "discussions_local",
+  {
+    id: text("id").primaryKey(), // uuid, stane se Neo4j Discussion.id
+    channelId: text("channel_id").notNull(),
+    threadId: text("thread_id"),
+    blockStartAt: text("block_start_at").notNull(),
+    blockEndAt: text("block_end_at").notNull(),
+    status: text("status").notNull().default("clustering"), // clustering|needs_reenrichment|enriched|written
+    messageCount: integer("message_count").notNull().default(0),
+    centroidEmbedding: blob("centroid_embedding", { mode: "buffer" }),
+    continuationOfDiscussionId: text("continuation_of_discussion_id"),
+    continuationReason: text("continuation_reason"), // explicit_reply|semantic_similarity (semantic_similarity: fáze c, zatím nevyužito)
+  },
+  (table) => [index("idx_discussions_channel_block").on(table.channelId, table.blockEndAt)],
+);
