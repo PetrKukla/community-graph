@@ -2,11 +2,54 @@
   import { onMount } from "svelte";
   import Graph from "graphology";
   import Sigma from "sigma";
+  import { drawDiscNodeLabel } from "sigma/rendering";
+  import type { NodeHoverDrawingFunction } from "sigma/rendering";
   import FA2Layout from "graphology-layout-forceatlas2/worker";
   import forceAtlas2 from "graphology-layout-forceatlas2";
   import type { GraphView, GraphViewNode } from "../../../types";
   import { fetchNeighbors } from "$lib/api/queries";
   import { nodeColor, nodeSize } from "$lib/graph/labels";
+  import { theme } from "$lib/stores/theme.svelte";
+
+  // sigma's built-in hover box is hard-coded white; this is the same geometry with a themed box
+  // so the hover label stays readable on a dark canvas.
+  function themedHover(dark: boolean): NodeHoverDrawingFunction {
+    const box = dark ? "#18181b" : "#ffffff";
+    return (context, data, settings): void => {
+      const { labelSize: size, labelFont: font, labelWeight: weight } = settings;
+      context.font = `${weight} ${size}px ${font}`;
+      context.fillStyle = box;
+      context.shadowOffsetX = 0;
+      context.shadowOffsetY = 0;
+      context.shadowBlur = 8;
+      context.shadowColor = dark ? "#000" : "#0000004d";
+
+      const PADDING = 2;
+      if (typeof data.label === "string") {
+        const textWidth = context.measureText(data.label).width;
+        const boxWidth = Math.round(textWidth + 5);
+        const boxHeight = Math.round(size + 2 * PADDING);
+        const radius = Math.max(data.size, size / 2) + PADDING;
+        const angle = Math.asin(boxHeight / 2 / radius);
+        const xDelta = Math.sqrt(Math.abs(radius ** 2 - (boxHeight / 2) ** 2));
+        context.beginPath();
+        context.moveTo(data.x + xDelta, data.y + boxHeight / 2);
+        context.lineTo(data.x + radius + boxWidth, data.y + boxHeight / 2);
+        context.lineTo(data.x + radius + boxWidth, data.y - boxHeight / 2);
+        context.lineTo(data.x + xDelta, data.y - boxHeight / 2);
+        context.arc(data.x, data.y, radius, angle, -angle);
+        context.closePath();
+        context.fill();
+      } else {
+        context.beginPath();
+        context.arc(data.x, data.y, data.size + PADDING, 0, Math.PI * 2);
+        context.closePath();
+        context.fill();
+      }
+      context.shadowBlur = 0;
+      drawDiscNodeLabel(context, data, settings);
+    };
+  }
 
   const {
     view,
@@ -117,7 +160,6 @@
     sigma = new Sigma(graph, container, {
       renderEdgeLabels: false,
       defaultEdgeColor: "rgba(130,130,130,0.25)",
-      labelColor: { color: "#141414" }, // dark text - the canvas keeps a light surface in both themes
       labelDensity: 0.6,
       labelRenderedSizeThreshold: 8,
       nodeReducer: (node, data) => {
@@ -178,7 +220,16 @@
     selectedId;
     sigma?.refresh();
   });
+
+  // theme-aware labels: ink follows the canvas for always-on labels, and a matching
+  // hover box keeps the hover label readable in dark mode too
+  $effect(() => {
+    const dark = theme.resolved === "dark";
+    sigma?.setSetting("labelColor", { color: dark ? "#f4f4f5" : "#18181b" });
+    sigma?.setSetting("defaultDrawNodeHover", themedHover(dark));
+    sigma?.refresh();
+  });
 </script>
 
-<!-- light surface always: keeps sigma's hover label (dark text on a white box) readable in dark mode -->
-<div bind:this={container} class="h-full w-full bg-[#fbfbfa]"></div>
+<!-- transparent: shows the themed card surface behind it (dark in dark mode) -->
+<div bind:this={container} class="h-full w-full"></div>
