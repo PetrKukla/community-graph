@@ -208,9 +208,12 @@
 
   // re-apply label visibility filter
   $effect(() => {
+    // read the prop unconditionally so the effect stays subscribed even when it
+    // first runs before any nodes exist (graph data still loading on a fresh load)
+    const hidden = hiddenLabels;
     if (!graph) return;
     graph.forEachNode((id, attrs) => {
-      graph?.setNodeAttribute(id, "hidden", hiddenLabels.has(attrs.nodeLabel as string));
+      graph?.setNodeAttribute(id, "hidden", hidden.has(attrs.nodeLabel as string));
     });
     sigma?.refresh();
   });
