@@ -3,17 +3,16 @@ import type { EmbeddingProvider } from "../../src/core/ports/EmbeddingProvider";
 import type { GraphStore } from "../../src/core/ports/GraphStore";
 import type { LLMProvider, LLMStructuredRequest, LLMStructuredResult } from "../../src/core/ports/LLMProvider";
 import type { SqliteContextSource } from "../../src/core/query/contextBuilder";
+import type { QueryPlan } from "../../src/core/query/schemas";
 import type { DiscussionCore, DiscussionMatch } from "../../src/core/query/types";
 import { answerQuestion, GraphUnavailableError, type QueryDeps } from "../../src/core/query/queryPipeline";
 
-const PLAN = {
+const PLAN: QueryPlan = {
   search_queries: ["názory uživatelů na Smarty", "kritika cen Smarty"],
   topics: ["Smarty"],
   entities: ["Smarty"],
-  intent: "opinion" as const,
-  filter_discussion_types: [],
-  filter_since: null,
-  filter_usernames: [],
+  intent: "opinion",
+  preferred_discussion_types: [],
   answer_language: "cs",
 };
 
@@ -30,13 +29,13 @@ interface LlmScript {
   failPlanOnce?: boolean;
 }
 
-function makeLlm(script: LlmScript): LLMProvider {
+function makeLlm(script: LlmScript, plan: QueryPlan = PLAN): LLMProvider {
   return {
     async generateStructured<T>(req: LLMStructuredRequest<T>): Promise<LLMStructuredResult<T>> {
       if (req.schemaName === "query_plan") {
         script.planCalls++;
         if (script.failPlanOnce && script.planCalls === 1) throw new Error("planner boom");
-        return { value: PLAN as unknown as T, raw: JSON.stringify(PLAN) };
+        return { value: plan as unknown as T, raw: JSON.stringify(plan) };
       }
       if (req.schemaName === "community_answer") {
         script.synthCalls++;
@@ -58,13 +57,13 @@ const sqlite: SqliteContextSource = {
   getDiscussionMessagesForQuery: () => [],
 };
 
-function match(id: string, score: number, sentiment: string): DiscussionMatch {
+function match(id: string, score: number, sentiment: string, discussionType = "discussion"): DiscussionMatch {
   return {
     id,
     title: `Diskuze ${id}`,
     summary: `Shrnutí ${id}`,
     channelId: "c1",
-    discussionType: "discussion",
+    discussionType,
     sentiment,
     resolved: null,
     startedAt: null,
@@ -102,7 +101,16 @@ function makeGraph(opts: FakeGraphOpts = {}): GraphStore {
       if (opts.bootstrapThrows) throw new Error("connection refused");
     },
     sampleLabelVocab: async () => ({ topics: ["Smarty"], entities: ["Smarty"] }),
-    searchDiscussionsByVector: async () => (opts.vectorHits ?? []).map((m) => ({ ...m })),
+    // honours the hard filters so the relaxed-retry path can be exercised
+    searchDiscussionsByVector: async (_v, _k, filters) => {
+      let hits = (opts.vectorHits ?? []).map((m) => ({ ...m }));
+      if (filters.channelIds) hits = hits.filter((h) => h.channelId != null && filters.channelIds!.includes(h.channelId));
+      if (filters.discussionTypes) {
+        hits = hits.filter((h) => h.discussionType != null && filters.discussionTypes!.includes(h.discussionType));
+      }
+      if (filters.since) hits = hits.filter((h) => h.startedAt == null || h.startedAt >= filters.since!);
+      return hits;
+    },
     getDiscussionsByAnchors: async () => [],
     expandDiscussions: async () => [],
     getDiscussionCores: async (ids: string[]) => {
@@ -164,5 +172,54 @@ describe("answerQuestion", () => {
     expect(out.answer).toContain("negativní");
     // one evidence item only -> "high" from the model is clamped down
     expect(out.confidence).toBe("medium");
+  });
+
+  test("planner discussion-type preference is soft: a mismatch does not drop the answer", async () => {
+    const script: LlmScript = { planCalls: 0, synthCalls: 0 };
+    const plan: QueryPlan = {
+      ...PLAN,
+      intent: "troubleshooting",
+      preferred_discussion_types: ["help-request"],
+      search_queries: ["nefunkční zvuk na Linuxu po aktualizaci"],
+    };
+    // the only hit is type "discussion", not "help-request"
+    const graph = makeGraph({ vectorHits: [match("d1", 0.9, "neutral", "discussion")] });
+
+    const out = await answerQuestion({ question: "Na Linuxu nejde zvuk" }, deps(graph, makeLlm(script, plan)));
+
+    expect(script.synthCalls).toBe(1);
+    expect(out.answer).toContain("negativní");
+    expect(out.answer.toLowerCase()).not.toContain("nenašel");
+  });
+
+  test("request hard filter with no match: relaxes once and notes it", async () => {
+    const script: LlmScript = { planCalls: 0, synthCalls: 0 };
+    const graph = makeGraph({ vectorHits: [match("d1", 0.9, "neutral", "discussion")] });
+
+    const out = await answerQuestion(
+      { question: "Byla tu nějaká oznámení?", filters: { discussionTypes: ["announcement"] }, debug: true },
+      deps(graph, makeLlm(script)),
+    );
+
+    expect(script.synthCalls).toBe(1);
+    expect(out.answer).toContain("negativní");
+    expect(out.answer).toContain("mimo něj");
+    expect(out.confidence).toBe("medium");
+    expect(out.debug?.timings_ms["retrieve-relaxed"]).toBeDefined();
+  });
+
+  test("request hard filter with a match: honoured, other types excluded, no note", async () => {
+    const script: LlmScript = { planCalls: 0, synthCalls: 0 };
+    const graph = makeGraph({
+      vectorHits: [match("d1", 0.9, "neutral", "announcement"), match("d2", 0.85, "neutral", "discussion")],
+    });
+
+    const out = await answerQuestion(
+      { question: "Byla tu nějaká oznámení?", filters: { discussionTypes: ["announcement"] } },
+      deps(graph, makeLlm(script)),
+    );
+
+    expect(out.citations.map((c) => c.discussion_id)).toEqual(["d1"]);
+    expect(out.answer).not.toContain("mimo něj");
   });
 });
