@@ -20,7 +20,7 @@ const ingestMessageSchema = z
   })
   .strict();
 
-const ingestBatchSchema = z
+export const ingestBatchSchema = z
   .object({
     guild: z.object({ id: z.string().min(1) }).strict(),
     channel: z.object({ id: z.string().min(1), type: z.string().optional() }).strict(),

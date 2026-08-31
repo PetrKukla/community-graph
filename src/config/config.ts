@@ -46,6 +46,13 @@ const configSchema = z.object({
       inline_graph_propagation_max: z.number().int().positive().default(200),
     })
     .prefault({}),
+  // Část 4.2 - sjednocený běh pipeline (POST /api/v1/pipeline).
+  pipeline: z
+    .object({
+      // default for a request that omits options.skip_graph_write (inverted sense)
+      include_graph_write: z.boolean().default(true),
+    })
+    .prefault({}),
   // Část 3 - dotazování. Every key defaulted + section prefaulted, so a config.toml
   // written before Part 3 (no [query] block) still boots.
   query: z

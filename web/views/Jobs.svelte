@@ -28,9 +28,11 @@
   {#snippet actions()}
     <select class={selectClass} bind:value={type} aria-label="Typ jobu">
       <option value="">Všechny typy</option>
+      <option value="pipeline">celá pipeline</option>
       <option value="cluster">clusterizace</option>
       <option value="enrich">enrichment</option>
       <option value="graph_write">zápis do grafu</option>
+      <option value="name_sync">synchronizace názvů</option>
     </select>
     <select class={selectClass} bind:value={status} aria-label="Stav jobu">
       <option value="">Všechny stavy</option>

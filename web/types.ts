@@ -3,7 +3,7 @@
  * Kept in sync by hand - the backend is the source of truth.
  */
 
-export type JobType = "cluster" | "enrich" | "graph_write" | "name_sync";
+export type JobType = "cluster" | "enrich" | "graph_write" | "name_sync" | "pipeline";
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
 export interface JobSummary {

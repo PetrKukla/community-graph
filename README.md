@@ -111,6 +111,7 @@ skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`. 
 | `web.graph_overview_limit` | Cílový horní počet uzlů v prvním vykreslení grafu; zbytek se dolazí rozbalením sousedů. |
 | `dictionary.max_ids_per_request` | Strop na součet `channels + users` v jednom `POST /api/v1/dictionary`. |
 | `dictionary.inline_graph_propagation_max` | Do tolika změněných ID se propagace názvů do Neo4j udělá přímo v requestu; nad = job `name_sync`. |
+| `pipeline.include_graph_write` | Default pro `POST /api/v1/pipeline`, když tělo nemá `options.skip_graph_write`. `false` = sjednocený běh končí po enrichmentu. |
 | `query.vector_top_k` | Kolik kandidátů z vektorového indexu se vezme na jednu variantu dotazu. |
 | `query.search_query_variants` | Strop na počet přeformulování otázky, které vygeneruje plánovač. |
 | `query.anchor_limit` | Strop diskuzí dotažených přes shodu názvu tématu/entity (Neo4j fulltext). |
@@ -296,6 +297,8 @@ jinak `401`. Platná cesta s nepodporovanou metodou → `405 method_not_allowed`
 | `POST /api/v1/batches` | Uloží dávku zpráv do SQLite (dedup podle `id`). **Jen ID** — názvová pole → `400`. Nic dalšího nespouští. `202` |
 | `POST /api/v1/dictionary` | **Část 4.1 — slovník jmen.** Přírůstkový upsert názvů guildy/kanálů/uživatelů do SQLite + propagace do Neo4j. `400` u prázdného těla / neznámých klíčů / přes limit. |
 | `POST /api/v1/dictionary/graph-resync` | Znovu nasype všechny ne-`null` názvy ze SQLite do existujících Neo4j uzlů (job `name_sync`). `202` s `job_id`, `503` bez Neo4j. |
+| `POST /api/v1/pipeline` | **Část 4.2 — sjednocený běh.** Dávka (tvarově jako `/batches`) + `options?` → synchronní ingest + jeden job `pipeline` (clusterize → enrich → graph-write). `202` s `batch_id` i `job_id`. |
+| `POST /api/v1/channels/:id/pipeline` | Totéž bez dávky — pipeline nad už naingestovanými `processed=0` zprávami kanálu. `202` s `job_id`. |
 | `POST /api/v1/channels/:id/clusterize` | Spustí krok 1 na pozadí. `202` s `job_id` |
 | `POST /api/v1/channels/:id/enrich` | Spustí krok 2. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id` |
 | `POST /api/v1/channels/:id/graph-write` | Spustí krok 3. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id` |
@@ -380,6 +383,39 @@ curl -X POST http://localhost:3004/api/v1/dictionary \
   obnova přes `POST /api/v1/dictionary/graph-resync`.
 - Po syncu jde na `/api/v1/stream` událost `dictionary.synced` (`guild_changed`,
   `channel_ids`, `user_ids`), na kterou web invaliduje grafové dotazy.
+
+### Sjednocený běh pipeline — `POST /api/v1/pipeline` (Část 4.2)
+
+Jedno volání provede celý řetězec, aby volající nemusel orchestrovat čtyři requesty a polling
+mezi nimi. Granulární endpointy (`/batches`, `/clusterize`, `/enrich`, `/graph-write`) zůstávají.
+
+```bash
+curl -X POST http://localhost:3004/api/v1/pipeline \
+  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{
+    "guild":   { "id": "g1" },
+    "channel": { "id": "c1", "type": "text" },
+    "messages": [ { "id": "m1", "author": { "id": "u1" },
+                   "content": "...", "created_at": "2026-08-24T10:00:00.000Z" } ],
+    "options": { "max_discussions": 50, "skip_graph_write": false }
+  }'
+# → 202 { "batch_id": "...", "inserted_count": 1, "duplicate_count": 0,
+#         "job_id": "...", "type": "pipeline", "status": "queued" }
+```
+
+- **Ingest je synchronní** (fail-fast na špatné tělo, hned `inserted` / `duplicate` počty),
+  zbytek je jeden job `type: "pipeline"`, který sekvenčně spustí `clusterize → enrich →
+  graph-write`. Sleduje se přes `GET /api/v1/jobs/:id` jako každý jiný job.
+- `result` má bloky `ingest` / `cluster` / `enrich` / `graphWrite`, plněné průběžně po každé
+  stage (`progress` jde 0→3, resp. 0→2 při `skip_graph_write`).
+- **Spadne-li stage**, job je `failed` a `error` je `"<stage>: <zpráva>"` (např. `"enrich: …"`);
+  `result` drží stage, které stihly doběhnout. Data z `ingest` + `cluster` zůstávají v SQLite,
+  stage jsou idempotentní → dá se dokončit granulárními endpointy.
+- `options.skip_graph_write` (default = `![pipeline].include_graph_write`) skončí po enrichmentu
+  a Neo4j se nesáhne. `options.max_messages` → `clusterize`, `max_discussions` → `enrich` i
+  `graph-write`.
+- Bez dávky: `POST /api/v1/channels/:id/pipeline` s tělem `{ "options": { … } }` spustí totéž
+  nad už naingestovanými `processed=0` zprávami kanálu.
 
 ### Výsledky jobů (`GET /jobs/:id` → `result`)
 

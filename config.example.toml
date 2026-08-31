@@ -37,6 +37,9 @@ graph_overview_limit = 400 # cílový počet uzlů v prvním vykreslení grafu
 max_ids_per_request = 5000 # strop na součet channels + users v jednom requestu
 inline_graph_propagation_max = 200 # do tolika změněných ID se propagace do Neo4j udělá v requestu; nad = job name_sync
 
+[pipeline] # Část 4.2 - sjednocený běh (POST /api/v1/pipeline)
+include_graph_write = true # default pro chybějící options.skip_graph_write (obráceně)
+
 [query] # Část 3 - dotazování nad grafem (POST /api/v1/query)
 search_query_variants = 3 # kolik přeformulování otázky vygeneruje plánovač (strop)
 vector_top_k = 40 # kandidátů z vektorového indexu na jednu variantu dotazu

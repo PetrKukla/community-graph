@@ -18,8 +18,18 @@ export interface ClusterChannelResult {
   skippedOpenBlockMessageCount: number;
 }
 
-export async function clusterChannel(channelId: string, embeddingProvider: EmbeddingProvider): Promise<ClusterChannelResult> {
-  const unprocessed = getUnprocessedMessages(channelId);
+export interface ClusterChannelOptions {
+  /** Cap the unprocessed messages considered in one run (chronological), for staged tuning on a big channel. */
+  maxMessages?: number;
+}
+
+export async function clusterChannel(
+  channelId: string,
+  embeddingProvider: EmbeddingProvider,
+  options: ClusterChannelOptions = {},
+): Promise<ClusterChannelResult> {
+  let unprocessed = getUnprocessedMessages(channelId);
+  if (options.maxMessages !== undefined) unprocessed = unprocessed.slice(0, options.maxMessages);
   if (unprocessed.length === 0) {
     return { processedMessageCount: 0, newDiscussionCount: 0, extendedDiscussionCount: 0, skippedOpenBlockMessageCount: 0 };
   }

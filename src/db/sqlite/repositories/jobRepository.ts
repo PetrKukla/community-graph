@@ -4,7 +4,7 @@ import { bus } from "../../../core/events/bus";
 import { db } from "../client";
 import { jobs } from "../schema";
 
-export type JobType = "cluster" | "enrich" | "graph_write" | "name_sync";
+export type JobType = "cluster" | "enrich" | "graph_write" | "name_sync" | "pipeline";
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
 export function createJob(type: JobType, channelId: string | null): string {
@@ -34,6 +34,23 @@ function emitJobUpdated(id: string): void {
 export function markJobRunning(id: string) {
   const now = new Date().toISOString();
   db.update(jobs).set({ status: "running", startedAt: now, updatedAt: now }).where(eq(jobs.id, id)).run();
+  emitJobUpdated(id);
+}
+
+/** Persist a job's result without touching its status - used for per-stage partials of a pipeline job. */
+export function saveJobResult(id: string, result: Record<string, unknown>) {
+  const now = new Date().toISOString();
+  db.update(jobs).set({ result, updatedAt: now }).where(eq(jobs.id, id)).run();
+  emitJobUpdated(id);
+}
+
+/** Update a job's progress counters and broadcast them. */
+export function updateJobProgress(id: string, current: number, total: number) {
+  const now = new Date().toISOString();
+  db.update(jobs)
+    .set({ progressCurrent: current, progressTotal: total, updatedAt: now })
+    .where(eq(jobs.id, id))
+    .run();
   emitJobUpdated(id);
 }
 

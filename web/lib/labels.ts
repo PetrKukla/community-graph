@@ -5,6 +5,7 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
   enrich: "enrichment",
   graph_write: "zápis do grafu",
   name_sync: "synchronizace názvů",
+  pipeline: "celá pipeline",
 };
 
 export function jobTypeLabel(type: string): string {
