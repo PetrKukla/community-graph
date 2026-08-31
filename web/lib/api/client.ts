@@ -1,4 +1,5 @@
 import { apiBase, apiKey } from "../config";
+import { authGate } from "../stores/auth.svelte";
 
 export class ApiError extends Error {
   constructor(
@@ -19,6 +20,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   const res = await fetch(`${apiBase}${path}`, { ...init, headers });
   if (!res.ok) {
+    if (res.status === 401) authGate.open();
     const body = await res.text().catch(() => "");
     throw new ApiError(res.status, body || res.statusText);
   }

@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { location } from "svelte-spa-router";
-  import { IconMoon, IconSun, IconPointFilled } from "@tabler/icons-svelte";
+  import { IconMoon, IconSun, IconPointFilled, IconKey } from "@tabler/icons-svelte";
   import { theme } from "$lib/stores/theme.svelte";
   import { connection } from "$lib/realtime/socket.svelte";
+  import { authGate } from "$lib/stores/auth.svelte";
   import { cn } from "$lib/utils";
 
   const { children }: { children?: Snippet } = $props();
@@ -64,6 +65,15 @@
           <IconPointFilled size={14} />
           {connectionLabel[connection.status]}
         </span>
+
+        <button
+          type="button"
+          class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          onclick={() => authGate.open()}
+          aria-label="Změnit přístupový klíč"
+        >
+          <IconKey size={18} />
+        </button>
 
         <button
           type="button"
