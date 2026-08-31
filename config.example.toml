@@ -32,3 +32,22 @@ llm_calls_retention_days = 14 # záznamy llm_calls starší než tolik dní se p
 llm_calls_max_rows = 50000 # strop na počet řádků llm_calls; přebytek se ořízne od nejstarších
 stats_tick_seconds = 2 # jak často se přepočítá levný funnel/totals agregát pro WS klienty
 graph_overview_limit = 400 # cílový počet uzlů v prvním vykreslení grafu
+
+[query] # Část 3 - dotazování nad grafem (POST /api/v1/query)
+search_query_variants = 3 # kolik přeformulování otázky vygeneruje plánovač (strop)
+vector_top_k = 40 # kandidátů z vektorového indexu na jednu variantu dotazu
+anchor_limit = 30 # strop diskuzí dotažených přes Topic/Entity kotvy (fulltext)
+expansion_seed_count = 8 # kolik nejlepších kandidátů jde do grafové expanze
+expansion_fanout = 5 # kolik sousedů na jeden seed při expanzi
+evidence_set_size = 10 # kolik diskuzí půjde do syntézy odpovědi
+raw_message_discussions = 4 # u kolika top diskuzí se do kontextu dotáhnou syrové zprávy z SQLite (0 = vypnuto)
+raw_messages_per_discussion = 40 # strop syrových zpráv na diskuzi
+context_token_budget = 12000 # odhadovaný strop kontextu pro syntézu; ořezává se od nejníže skórujících
+min_candidate_score = 0.35 # pod tímto skóre se kandidát zahodí; nic nad prahem -> confidence "low", bez LLM syntézy
+recency_half_life_days = 120 # po kolika dnech klesne recency bonus na polovinu
+weight_vector = 1.0 # váha sémantické (vektorové) podobnosti ve finálním skóre
+weight_anchor = 0.6 # váha přímého zásahu přes název tématu/entity
+weight_expansion = 0.4 # váha kandidátů získaných grafovou expanzí
+weight_recency = 0.15 # váha recency bonusu
+opinion_sentiment_diversity = true # u názorových otázek držet v evidence setu i menšinový sentiment
+vocab_sample_size = 60 # kolik nejčastějších Topic/Entity názvů se dá plánovači jako slovník grafu
