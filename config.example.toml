@@ -33,6 +33,10 @@ llm_calls_max_rows = 50000 # strop na počet řádků llm_calls; přebytek se o�
 stats_tick_seconds = 2 # jak často se přepočítá levný funnel/totals agregát pro WS klienty
 graph_overview_limit = 400 # cílový počet uzlů v prvním vykreslení grafu
 
+[dictionary] # Část 4.1 - synchronizace názvů (POST /api/v1/dictionary)
+max_ids_per_request = 5000 # strop na součet channels + users v jednom requestu
+inline_graph_propagation_max = 200 # do tolika změněných ID se propagace do Neo4j udělá v requestu; nad = job name_sync
+
 [query] # Část 3 - dotazování nad grafem (POST /api/v1/query)
 search_query_variants = 3 # kolik přeformulování otázky vygeneruje plánovač (strop)
 vector_top_k = 40 # kandidátů z vektorového indexu na jednu variantu dotazu

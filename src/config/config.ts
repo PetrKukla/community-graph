@@ -38,6 +38,14 @@ const configSchema = z.object({
       graph_overview_limit: z.number().int().positive().default(400),
     })
     .prefault({}),
+  // Část 4.1 - slovník jmen (POST /api/v1/dictionary). Defaulted + prefaulted so a
+  // config.toml written before Part 4 (no [dictionary] block) still boots.
+  dictionary: z
+    .object({
+      max_ids_per_request: z.number().int().positive().default(5000),
+      inline_graph_propagation_max: z.number().int().positive().default(200),
+    })
+    .prefault({}),
   // Část 3 - dotazování. Every key defaulted + section prefaulted, so a config.toml
   // written before Part 3 (no [query] block) still boots.
   query: z

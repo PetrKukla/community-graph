@@ -1,9 +1,13 @@
 import { sqliteTable, text, integer, real, blob, index } from "drizzle-orm/sqlite-core";
 
+// name / type columns are owned exclusively by POST /api/v1/dictionary (Část 4.1); ingest only
+// ever writes the id skeleton + activity timestamps. names_synced_at records when the dictionary
+// endpoint last touched the name columns (observational: debug + "stáří názvů" in the web).
 export const guilds = sqliteTable("guilds", {
   id: text("id").primaryKey(),
   name: text("name"),
   createdAt: text("created_at").notNull(),
+  namesSyncedAt: text("names_synced_at"),
 });
 
 export const channels = sqliteTable("channels", {
@@ -13,15 +17,19 @@ export const channels = sqliteTable("channels", {
   type: text("type"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
+  namesSyncedAt: text("names_synced_at"),
 });
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   username: text("username"),
   displayName: text("display_name"),
-  firstSeenAt: text("first_seen_at").notNull(),
-  lastSeenAt: text("last_seen_at").notNull(),
+  // nullable so a dictionary pre-seed (names sent before the first message) can create the row;
+  // ingest back-fills them with least()/greatest() on the first real message.
+  firstSeenAt: text("first_seen_at"),
+  lastSeenAt: text("last_seen_at"),
   messageCount: integer("message_count").notNull().default(0),
+  namesSyncedAt: text("names_synced_at"),
 });
 
 export const ingestionBatches = sqliteTable("ingestion_batches", {

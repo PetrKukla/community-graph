@@ -63,12 +63,21 @@ export interface StatsTickEvent {
   totals: StatsTotals;
 }
 
+/** Emitted after POST /api/v1/dictionary writes name changes to SQLite (Část 4.1). */
+export interface DictionarySyncedEvent {
+  guild_changed: boolean;
+  channel_ids: string[];
+  user_ids: string[];
+  at: string;
+}
+
 export interface BusEventMap {
   "job.created": JobCreatedEvent;
   "job.updated": JobUpdatedEvent;
   "llm.call": LlmCallEvent;
   "ingest.batch": IngestBatchEvent;
   "stats.tick": StatsTickEvent;
+  "dictionary.synced": DictionarySyncedEvent;
 }
 
 export type BusEventName = keyof BusEventMap;
