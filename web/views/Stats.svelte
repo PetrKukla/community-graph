@@ -87,7 +87,7 @@
       <BarList items={topEntities} labelWidth="12rem" />
     </Card>
 
-    <Card title="Kanály: zprávy × clustery" class="lg:col-span-2">
+    <Card title="Kanály" class="lg:col-span-2">
       {#if (d?.clusters_per_channel.length ?? 0) === 0}
         <p class="text-sm text-muted-foreground">Zatím žádné clustery.</p>
       {:else}

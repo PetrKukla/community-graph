@@ -23,6 +23,7 @@ kauzální řetězec událostí (např. problém → identifikace → řešení)
 nebo kdo je chválen apod.). Naprosto klíčový je, aby summary obsahovalo informace a klíčová slova ze všech zpráv.
 Když si někdo stěžuje na Smarty, protože sou drahý a uvede příklad cen, bude ve shrnutí vše včetně příkladné ceny.
 Pokus se zhrnutí co nejvíce zkomprimovat vypuštěním duplicitních nebo zbytečných frází, aniž by došlo ke ztrátě informací.
+Názvy témat musí být v češtině, pokud se nejedná o název, ten musí být v původním znění.
 `;
 
 /** Renders the discussion's messages into the user turn. */

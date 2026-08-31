@@ -47,8 +47,7 @@
     >
       <h2 class="text-sm font-semibold tracking-tight">Přístupový klíč</h2>
       <p class="mt-1 text-xs text-muted-foreground">
-        API odmítlo požadavek (<code>401</code>). Zadej hodnotu <code>API_KEY</code> — uloží se do
-        <code>localStorage</code> tohoto prohlížeče.
+        Zadej <code>API_KEY</code> pro autorizaci API.
       </p>
 
       <input
@@ -60,18 +59,18 @@
         class="mt-3 h-9 w-full rounded-md border border-border bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
 
+      {#if import.meta.env.DEV}
+        <p class="mt-3 text-xs text-muted-foreground">
+          TIP: Ve vývoji jde klíč nastavit i přes <code>VITE_API_KEY</code> v kořenovém <code>.env</code>.
+        </p>
+      {/if}
+
       <div class="mt-4 flex items-center justify-end gap-2">
         {#if apiKey()}
           <Button variant="ghost" onclick={dismiss}>Zrušit</Button>
         {/if}
         <Button variant="default" type="submit">Uložit</Button>
       </div>
-
-      {#if import.meta.env.DEV}
-        <p class="mt-3 text-xs text-muted-foreground">
-          Ve vývoji jde klíč nastavit i přes <code>VITE_API_KEY</code> v kořenovém <code>.env</code>.
-        </p>
-      {/if}
     </form>
   </div>
 {/if}
