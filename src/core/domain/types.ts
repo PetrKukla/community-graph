@@ -1,10 +1,8 @@
+// Batches carry IDs only. Names (guild/channel/author) travel out-of-band through
+// POST /api/v1/dictionary (Část 4.1); sending a name field here is a 400.
 export interface IngestMessage {
   id: string;
-  author: {
-    id: string;
-    username?: string;
-    display_name?: string;
-  };
+  author: { id: string };
   content: string;
   created_at: string;
   reply_to_message_id?: string;
@@ -14,8 +12,8 @@ export interface IngestMessage {
 }
 
 export interface IngestBatchRequest {
-  guild: { id: string; name?: string };
-  channel: { id: string; name?: string; type?: string };
+  guild: { id: string };
+  channel: { id: string; type?: string };
   messages: IngestMessage[];
 }
 

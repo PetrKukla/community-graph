@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "../client";
 import { guilds, channels, users, messages, ingestionBatches } from "../schema";
-import type { IngestBatchRequest, IngestMessage } from "../../../core/domain/types";
+import type { IngestBatchRequest } from "../../../core/domain/types";
 
 const INSERT_CHUNK_SIZE = 500;
 
@@ -30,49 +30,39 @@ export function ingestBatch(batchId: string, req: IngestBatchRequest): IngestRes
   const now = new Date().toISOString();
 
   return db.transaction((tx) => {
-    tx.insert(guilds)
-      .values({ id: req.guild.id, name: req.guild.name ?? null, createdAt: now })
-      .onConflictDoUpdate({
-        target: guilds.id,
-        set: { name: req.guild.name ?? null },
-      })
-      .run();
+    // Names are owned by POST /api/v1/dictionary. Ingest only ever writes the id skeleton
+    // (so FKs and graph-write resolve) plus channel/user activity timestamps.
+    tx.insert(guilds).values({ id: req.guild.id, createdAt: now }).onConflictDoNothing().run();
 
     tx.insert(channels)
       .values({
         id: req.channel.id,
         guildId: req.guild.id,
-        name: req.channel.name ?? null,
         type: req.channel.type ?? null,
         createdAt: now,
         updatedAt: now,
       })
       .onConflictDoUpdate({
         target: channels.id,
-        set: { name: req.channel.name ?? null, type: req.channel.type ?? null, updatedAt: now },
+        set: {
+          updatedAt: now,
+          // type still rides along the batch; only overwrite when the batch actually carries it
+          ...(req.channel.type !== undefined ? { type: req.channel.type } : {}),
+        },
       })
       .run();
 
-    const authorFirstSeen = new Map<string, IngestMessage>();
-    for (const m of req.messages) {
-      if (!authorFirstSeen.has(m.author.id)) authorFirstSeen.set(m.author.id, m);
-    }
-    for (const [, m] of authorFirstSeen) {
+    const authorIds = new Set<string>();
+    for (const m of req.messages) authorIds.add(m.author.id);
+    for (const authorId of authorIds) {
       tx.insert(users)
-        .values({
-          id: m.author.id,
-          username: m.author.username ?? null,
-          displayName: m.author.display_name ?? null,
-          firstSeenAt: now,
-          lastSeenAt: now,
-          messageCount: 0,
-        })
+        .values({ id: authorId, firstSeenAt: now, lastSeenAt: now, messageCount: 0 })
         .onConflictDoUpdate({
           target: users.id,
+          // widen the seen-window; coalesce guards rows pre-seeded by dictionary (NULL seen columns)
           set: {
-            username: m.author.username ?? undefined,
-            displayName: m.author.display_name ?? undefined,
-            lastSeenAt: now,
+            firstSeenAt: sql`min(coalesce(${users.firstSeenAt}, ${now}), ${now})`,
+            lastSeenAt: sql`max(coalesce(${users.lastSeenAt}, ${now}), ${now})`,
           },
         })
         .run();

@@ -9,6 +9,7 @@ process.env.SQLITE_PATH = join(tmpdir(), `cg-dict-${randomUUID()}.sqlite`);
 
 const { db, runMigrations } = await import("../../src/db/sqlite/client");
 const { syncDictionary } = await import("../../src/db/sqlite/repositories/dictionaryRepository");
+const { ingestBatch } = await import("../../src/db/sqlite/repositories/ingestRepository");
 const { guilds, channels, users } = await import("../../src/db/sqlite/schema");
 
 runMigrations();
@@ -66,6 +67,30 @@ describe("syncDictionary", () => {
     expect(row?.firstSeenAt).toBeNull();
     expect(row?.lastSeenAt).toBeNull();
     expect(row?.messageCount).toBe(0);
+  });
+
+  test("ingest keeps names from the dictionary and only widens the seen-window", () => {
+    syncDictionary({ users: [{ id: "iu1", username: "ivan", display_name: "Ivan" }] });
+
+    ingestBatch("b1", {
+      guild: { id: "ig1" },
+      channel: { id: "ic1", type: "text" },
+      messages: [
+        { id: "im1", author: { id: "iu1" }, content: "ahoj", created_at: "2026-08-24T10:00:00.000Z" },
+        { id: "im2", author: { id: "iu1" }, content: "jak je", created_at: "2026-08-25T10:00:00.000Z" },
+      ],
+    });
+
+    const u = db.select().from(users).where(eq(users.id, "iu1")).get();
+    expect(u?.username).toBe("ivan"); // ingest did not overwrite the dictionary name
+    expect(u?.messageCount).toBe(2);
+    // pre-seeded row had NULL seen columns; ingest back-fills them (coalesce guard)
+    expect(u?.firstSeenAt).not.toBeNull();
+    expect(u?.lastSeenAt).not.toBeNull();
+
+    // skeleton rows for an unknown guild/channel come in name-less
+    expect(db.select().from(guilds).where(eq(guilds.id, "ig1")).get()?.name).toBeNull();
+    expect(db.select().from(channels).where(eq(channels.id, "ic1")).get()?.name).toBeNull();
   });
 
   test("a section-scoped sync does not touch other sections", () => {

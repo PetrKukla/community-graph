@@ -5,26 +5,28 @@ import { bus } from "../../core/events/bus";
 import { ingestBatch } from "../../db/sqlite/repositories/ingestRepository";
 import { methodNotAllowed } from "../middleware/methodNotAllowed";
 
-const ingestMessageSchema = z.object({
-  id: z.string().min(1),
-  author: z.object({
+// .strict() everywhere a name field used to live: a batch that still carries guild.name /
+// channel.name / author.username gets a 400 pointing at POST /api/v1/dictionary (Část 4.1).
+const ingestMessageSchema = z
+  .object({
     id: z.string().min(1),
-    username: z.string().optional(),
-    display_name: z.string().optional(),
-  }),
-  content: z.string(),
-  created_at: z.string().min(1),
-  reply_to_message_id: z.string().optional(),
-  thread_id: z.string().optional(),
-  mentions: z.array(z.string()).optional(),
-  attachments_count: z.number().int().nonnegative().optional(),
-});
+    author: z.object({ id: z.string().min(1) }).strict(),
+    content: z.string(),
+    created_at: z.string().min(1),
+    reply_to_message_id: z.string().optional(),
+    thread_id: z.string().optional(),
+    mentions: z.array(z.string()).optional(),
+    attachments_count: z.number().int().nonnegative().optional(),
+  })
+  .strict();
 
-const ingestBatchSchema = z.object({
-  guild: z.object({ id: z.string().min(1), name: z.string().optional() }),
-  channel: z.object({ id: z.string().min(1), name: z.string().optional(), type: z.string().optional() }),
-  messages: z.array(ingestMessageSchema).min(1),
-});
+const ingestBatchSchema = z
+  .object({
+    guild: z.object({ id: z.string().min(1) }).strict(),
+    channel: z.object({ id: z.string().min(1), type: z.string().optional() }).strict(),
+    messages: z.array(ingestMessageSchema).min(1),
+  })
+  .strict();
 
 export const ingestRoute = new Hono();
 

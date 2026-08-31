@@ -109,6 +109,8 @@ skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`. 
 | `web.llm_calls_retention_days` / `web.llm_calls_max_rows` | Retence tabulky `llm_calls` (dashboard buffer): při zápisu se občas smažou řádky starší než N dní nebo nad limitem řádků. |
 | `web.stats_tick_seconds` | Interval přepočtu levného `funnel`/`totals` agregátu, který jde WS klientům jako `stats.tick`. Počítá se jen když je aspoň jeden klient připojený. |
 | `web.graph_overview_limit` | Cílový horní počet uzlů v prvním vykreslení grafu; zbytek se dolazí rozbalením sousedů. |
+| `dictionary.max_ids_per_request` | Strop na součet `channels + users` v jednom `POST /api/v1/dictionary`. |
+| `dictionary.inline_graph_propagation_max` | Do tolika změněných ID se propagace názvů do Neo4j udělá přímo v requestu; nad = job `name_sync`. |
 | `query.vector_top_k` | Kolik kandidátů z vektorového indexu se vezme na jednu variantu dotazu. |
 | `query.search_query_variants` | Strop na počet přeformulování otázky, které vygeneruje plánovač. |
 | `query.anchor_limit` | Strop diskuzí dotažených přes shodu názvu tématu/entity (Neo4j fulltext). |
@@ -289,7 +291,8 @@ jinak `401`. Platná cesta s nepodporovanou metodou → `405 method_not_allowed`
 
 | Endpoint | Co dělá |
 |---|---|
-| `POST /api/v1/batches` | Uloží dávku zpráv do SQLite (dedup podle `id`). Nic dalšího nespouští. `202` |
+| `POST /api/v1/batches` | Uloží dávku zpráv do SQLite (dedup podle `id`). **Jen ID** — názvová pole → `400`. Nic dalšího nespouští. `202` |
+| `POST /api/v1/dictionary` | **Část 4.1 — slovník jmen.** Přírůstkový upsert názvů guildy/kanálů/uživatelů do SQLite. `400` u prázdného těla / neznámých klíčů / přes limit. |
 | `POST /api/v1/channels/:id/clusterize` | Spustí krok 1 na pozadí. `202` s `job_id` |
 | `POST /api/v1/channels/:id/enrich` | Spustí krok 2. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id` |
 | `POST /api/v1/channels/:id/graph-write` | Spustí krok 3. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id` |
@@ -311,15 +314,19 @@ Endpointy `stream` / `stats` / `ai/calls` / `graph/*` existují jen když `confi
 
 ### `POST /api/v1/batches` — tvar vstupu
 
+> **Breaking change (Část 4.1):** dávka nese **jen ID**. `guild.name`, `channel.name`,
+> `author.username` / `display_name` už nejsou povolené — objekty jsou `.strict()` a jejich
+> přítomnost vrací `400`. Názvy se posílají zvlášť přes `POST /api/v1/dictionary` (níže).
+
 ```bash
 curl -X POST http://localhost:3004/api/v1/batches \
   -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{
-    "guild":   { "id": "g1", "name": "Moje komunita" },
-    "channel": { "id": "c1", "name": "obecna", "type": "text" },
+    "guild":   { "id": "g1" },
+    "channel": { "id": "c1", "type": "text" },
     "messages": [
       { "id": "m1",
-        "author": { "id": "u1", "username": "adam" },
+        "author": { "id": "u1" },
         "content": "Ahoj, sledoval někdo ten nový trailer?",
         "created_at": "2026-08-24T10:00:00.000Z",
         "mentions": [], "attachments_count": 0 }
@@ -329,7 +336,40 @@ curl -X POST http://localhost:3004/api/v1/batches \
 ```
 
 `reply_to_message_id`, `thread_id`, `mentions`, `attachments_count` jsou nepovinné — když
-neplatí, pole z JSONu **vynech** (neposílej `null`, validace to odmítne).
+neplatí, pole z JSONu **vynech** (neposílej `null`, validace to odmítne). Ingest zakládá
+kostry řádků `guilds` / `channels` / `users` (jen ID + časy aktivity); názvy zůstanou `null`,
+dokud nedorazí `dictionary` sync.
+
+### Slovník jmen — `POST /api/v1/dictionary` (Část 4.1)
+
+Názvy (guild / kanál / uživatel) se udržují mimo dávku zpráv, přírůstkově. Jediný zdroj
+pravdy jsou sloupce v SQLite (`guilds.name`, `channels.name` / `type`, `users.username` /
+`display_name`) a tento endpoint je jejich jediný zapisovatel.
+
+```bash
+curl -X POST http://localhost:3004/api/v1/dictionary \
+  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{
+    "guild":    { "id": "g1", "name": "Moje komunita" },
+    "channels": [{ "id": "c1", "name": "obecna", "type": "text" }],
+    "users":    [{ "id": "u1", "username": "adam", "display_name": "Adam" }]
+  }'
+# → 200 {
+#     "guild":    { "updated": 1 },
+#     "channels": { "received": 1, "created": 1, "updated": 0, "unchanged": 0 },
+#     "users":    { "received": 1, "created": 1, "updated": 0, "unchanged": 0 },
+#     "graph":    { "configured": true, "propagated": false }
+#   }
+```
+
+- **Přírůstkové:** posílá se jen to, co se změnilo. Chybějící sekce / ID = beze změny;
+  opakované poslání stejných hodnot nic nezapíše (`updated: 0`).
+- **`null` maže, chybějící pole nechává být:** `"display_name": null` vynuluje jméno;
+  když pole v JSONu není, hodnota se nemění.
+- **Pre-seed:** sync uživatele, který ještě nemá zprávu, založí `users` řádek s
+  `first_seen_at` / `last_seen_at` `NULL`; první pozdější zpráva je dorovná.
+- Strop na `channels + users` v jednom requestu je `[dictionary].max_ids_per_request`.
+- Propagace názvů do už zapsaného Neo4j grafu — viz níže (D3).
 
 ### Výsledky jobů (`GET /jobs/:id` → `result`)
 

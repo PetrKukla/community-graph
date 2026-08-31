@@ -296,12 +296,10 @@ export function rawMessagesToBatches(
 
         const meta = options.channels?.[group.channelId];
         const channel: IngestBatchRequest['channel'] = { id: group.channelId };
-        if (meta?.name) channel.name = meta.name;
         if (meta?.type) channel.type = meta.type;
 
+        // names travel out-of-band via POST /api/v1/dictionary now; batches are id-only
         const guild: IngestBatchRequest['guild'] = { id: group.guildId };
-        const gName = guildName(group.guildId);
-        if (gName) guild.name = gName;
 
         const relativePath = `${guildSeg.get(group.guildId)!}/${channelSegByGuild
             .get(group.guildId)!
