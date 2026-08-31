@@ -60,6 +60,13 @@ export const enrichmentSegmentSchema = z.object({
     .nullable()
     .describe(
       'For question/help-request: true if resolved in-thread, false if not, null if N/A.'
+    ),
+  source_cluster: z
+    .string()
+    .optional()
+    .describe(
+      'Label of the input cluster (=== CLUSTER <label> ===) this segment came from. ' +
+        'Omit on single-cluster calls; on batched calls fill it for every segment.'
     )
 });
 

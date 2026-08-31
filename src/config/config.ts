@@ -24,7 +24,12 @@ const configSchema = z.object({
     max_tokens: z.number().int().positive(),
     temperature: z.number().min(0).max(2),
     max_messages_per_call: z.number().int().positive(),
-    request_timeout_ms: z.number().int().positive()
+    request_timeout_ms: z.number().int().positive(),
+    // Část 4.4 - batchování enrichmentu. Defaulted, aby config.toml napsaný před
+    // Částí 4.4 (bez těchto klíčů) pořád nabootoval.
+    enrichment_batch_target_tokens: z.number().int().nonnegative().default(6000),
+    enrichment_batch_max_discussions: z.number().int().positive().default(25),
+    enrichment_batch_retry_individually: z.boolean().default(true)
   }),
   // every key defaulted, and the whole section prefaulted, so a config.toml written
   // before Part 2 (no [web] block) still boots

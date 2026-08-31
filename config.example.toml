@@ -22,10 +22,10 @@ provider = "gemini" # anthropic | openai-compatible | gemini - kredence pro zvol
 model = "gemma-4-31b-it" # název modelu u zvoleného providera
 max_tokens = 8192 # strop na délku odpovědi LLM (jedna diskuze rozdělená do mnoha segmentů může být dlouhá)
 temperature = 0.2 # ignorováno Anthropic adaptérem (modely Claude 4.5+ parametr odmítají)
-max_messages_per_call = 400 # kolik zpráv nejvýš se pošle do jedné enrichment výzvy (ochrana proti přetečení kontextu)
+max_messages_per_call = 400 # kolik zpráv nejvýš se pošle do jedné enrichment výzvy; nově strop na SOUČET zpráv za celý batch
 request_timeout_ms = 120000 # timeout jednoho volání LLM
 enrichment_batch_target_tokens = 6000 # Část 4.4 - cílový rozpočet promptu na jedno enrichment volání; 0 = batching vypnutý (1 volání/diskuze)
-enrichment_batch_max_discussions = 12 # tvrdý strop na počet clusterů v jednom enrichment volání
+enrichment_batch_max_discussions = 25 # tvrdý strop na počet clusterů v jednom enrichment volání
 enrichment_batch_retry_individually = true # spadlý batch → zkusit diskuze po jedné, ať jedno špatné volání nezhodí celý batch
 
 [web]

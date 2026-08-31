@@ -19,6 +19,8 @@ const enrichResult = {
   createdSegmentCount: 0,
   skippedEmptyCount: 0,
   failedCount: 0,
+  batchCount: 1,
+  individualRetryCount: 0,
   errors: []
 };
 const graphWriteResult = {

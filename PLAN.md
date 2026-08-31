@@ -9,7 +9,7 @@ Práce je rozdělená do pěti částí:
 | **[1 — Generace grafu](#část-1--generace-grafu)**                                       | ingest → clustering → AI enrichment → zápis do Neo4j                                   | navrženo (většina tohoto dokumentu)                                                                        |
 | **[2 — Webová aplikace a zobrazení grafu](#část-2--webová-aplikace-a-zobrazení-grafu)** | read-only realtime dashboard + vizualizace grafu                                       | navrženo, detail v [`plans/WEBAPP.md`](plans/WEBAPP.md)                                                    |
 | **[3 — Dotazování nad grafem](#část-3--dotazování-nad-grafem-querying)**                | NL dotaz → odpověď syntetizovaná z grafu (jen backend API)                             | **implementováno** (`POST /api/v1/query`); návrh v [`plans/QUERYING.md`](plans/QUERYING.md)                |
-| **[4 — Propojení](#část-4--propojení)**                                                 | slovník jmen + sjednocený běh pipeline + webové dotazovací UI + batchování enrichmentu | **implementováno** (mimo §4.4 batching — navrženo); návrh v [`plans/INTEGRATION.md`](plans/INTEGRATION.md) |
+| **[4 — Propojení](#část-4--propojení)**                                                 | slovník jmen + sjednocený běh pipeline + webové dotazovací UI + batchování enrichmentu | **implementováno**; návrh v [`plans/INTEGRATION.md`](plans/INTEGRATION.md)                                 |
 | **[5 — Budoucí vylepšení](#část-5--budoucí-vylepšení)**                                 | streaming odpovědí a další nadstavby                                                   | **zatím nenavrženo**                                                                                       |
 
 ---
@@ -545,12 +545,12 @@ Samostatná fáze navazující na M6 — **čistě backend**: jeden nový synchr
 
 ## Část 4 — Propojení
 
-Sjednocení hotových částí 1–3 do plynulého celku. Tři nezávislé slice, **implementováno**; plná specifikace v [`plans/INTEGRATION.md`](plans/INTEGRATION.md):
+Sjednocení hotových částí 1–3 do plynulého celku. Čtyři nezávislé slice, **implementováno**; plná specifikace v [`plans/INTEGRATION.md`](plans/INTEGRATION.md):
 
 - **Slovník jmen** — názvy uživatelů/kanálů/serveru se posílají zvlášť a přírůstkově přes `POST /api/v1/dictionary`, ne s každou dávkou zpráv; dávky nesou jen ID. Jediný zdroj pravdy o názvech je SQLite, propagace do Neo4j vč. nového uzlu `Guild` (inline nebo job `name_sync`, `POST /api/v1/dictionary/graph-resync` pro obnovu). Detail v [`plans/DICTIONARY.md`](plans/DICTIONARY.md).
 - **Sjednocený běh pipeline** — `POST /api/v1/pipeline` (i `POST /api/v1/channels/:id/pipeline`) přijme dávku a jedním jobem `pipeline` provede ingest → clusterize → enrich → graph-write, s průběžným `result` po každé stage. Granulární endpointy zůstávají. Nahrazuje dosud odložené „spusť všechno" (viz [§1.1](#11-cíl-a-rozsah), M6).
 - **Webové dotazovací rozhraní** — pohled `/ask` v dashboardu z [Části 2](#část-2--webová-aplikace-a-zobrazení-grafu) nad API z [Části 3](#část-3--dotazování-nad-grafem-querying): odeslání otázky, ukotvená odpověď, klikací citace (`[D#]` → karty) vedoucí na drawer s detailem diskuze (`GET /api/v1/discussions/:id`) a na uzel v grafové vizualizaci (`/graph?focus=`), klientská historie dotazů v `localStorage`.
-- **Batchování enrichmentu** (navrženo, §4.4) — enrichment stage posílá víc clusterů do jednoho LLM volání dle konfigurovaného tokenového rozpočtu (`[llm].enrichment_batch_target_tokens`), s oštítkováním clusterů v promptu (delimitery) a mapováním vrácených `segments[]` zpět na rodičovské diskuze přes vlastnictví zpráv. Napojuje se na existující split mechanismus (`enrichmentResponseSchema.segments`). Detail v [`plans/INTEGRATION.md`](plans/INTEGRATION.md), §4.4.
+- **Batchování enrichmentu** (§4.4) — enrichment stage posílá víc clusterů do jednoho LLM volání dle konfigurovaného tokenového rozpočtu (`[llm].enrichment_batch_target_tokens`), s oštítkováním clusterů v promptu (delimitery) a mapováním vrácených `segments[]` zpět na rodičovské diskuze přes vlastnictví zpráv. Napojuje se na existující split mechanismus (`enrichmentResponseSchema.segments`). Detail v [`plans/INTEGRATION.md`](plans/INTEGRATION.md), §4.4.
 
 ---
 

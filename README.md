@@ -102,8 +102,11 @@ skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`. 
 | `llm.model`                                                                          | Název modelu u zvoleného providera.                                                                                                                |
 | `llm.max_tokens`                                                                     | Strop na délku odpovědi. Zvyš, když se odpověď u velkých rozdělených diskuzí ořezává.                                                              |
 | `llm.temperature`                                                                    | **Anthropic adaptér ji ignoruje** (Claude 4.5+ ji odmítá); platí pro `openai-compatible` a `gemini`.                                               |
-| `llm.max_messages_per_call`                                                          | Kolik zpráv nejvýš jde do jedné výzvy (ochrana kontextu); delší diskuze se ořízne na prvních N.                                                    |
+| `llm.max_messages_per_call`                                                          | Kolik zpráv nejvýš jde do jedné výzvy (ochrana kontextu); delší diskuze se ořízne na prvních N. Při batchování je to strop na **součet** zpráv za celý batch. |
 | `llm.request_timeout_ms`                                                             | Timeout jednoho volání LLM. Zvyš u pomalých lokálních modelů.                                                                                      |
+| `llm.enrichment_batch_target_tokens`                                                | **Část 4.4.** Cílový rozpočet promptu na jedno enrichment volání — víc malých clusterů se sbalí do jednoho volání, dokud se vejdou. `0` = batching vypnutý (1 volání na diskuzi, jako dřív). |
+| `llm.enrichment_batch_max_discussions`                                              | Tvrdý strop na počet clusterů v jednom enrichment volání (pojistka proti „300 jednozprávových clusterů naráz“).                                      |
+| `llm.enrichment_batch_retry_individually`                                           | Spadne-li batchové volání, zkusit každou diskuzi batche zvlášť (`true`) místo označit celý batch za `failed` (`false`).                              |
 | `web.enabled`                                                                        | `false` = neservírovat `web/dist` ani endpointy `/api/v1/stream\|stats\|ai/calls\|graph/*`.                                                        |
 | `web.dev_port`                                                                       | Port Vite dev serveru (`bun run web:dev`); ten proxuje `/api` na `[server].port`.                                                                  |
 | `web.llm_calls_retention_days` / `web.llm_calls_max_rows`                            | Retence tabulky `llm_calls` (dashboard buffer): při zápisu se občas smažou řádky starší než N dní nebo nad limitem řádků.                          |
@@ -236,8 +239,15 @@ Reply na zprávu ze stále otevřeného bloku zatím zachycena není.
 ## Krok 2 — AI enrichment
 
 `POST /channels/:id/enrich` vezme diskuze kanálu ve stavu `clustering` / `needs_reenrichment`
-a jednu po druhé prožene přes LLM. Model dostane text zpráv a vrátí **pole segmentů** — každý
+a prožene je přes LLM. Model dostane text zpráv a vrátí **pole segmentů** — každý
 segment je souvislá (pod)diskuze s vlastním enrichmentem a seznamem `message_ids`.
+
+- **Batchování (Část 4.4):** víc malých diskuzí se sbalí do jednoho LLM volání do rozpočtu
+  `llm.enrichment_batch_target_tokens` (0 = vypnuto, 1 volání na diskuzi). V promptu je každý
+  cluster oštítkovaný blok `=== CLUSTER <štítek> ===`; vrácené segmenty se mapují zpět na
+  rodičovské diskuze podle vlastnictví zpráv (`source_cluster` je jen tie-breaker). Segment
+  přesahující dva clustery se rozřízne po hranici vlastnictví, vynechaný cluster se dořeší
+  samostatným voláním. Výsledek přidává `batchCount` a `individualRetryCount`.
 
 - **Jeden segment** → enrichment se zapíše přímo k diskuzi (`status = 'enriched'`).
   `message_ids` se ignorují.
@@ -441,7 +451,8 @@ graph-write`. Sleduje se přes `GET /api/v1/jobs/:id` jako každý jiný job.
   "extendedDiscussionCount": 0, "skippedOpenBlockMessageCount": 1 }
 // enrich
 { "enrichedDiscussionCount": 8, "splitDiscussionCount": 2, "createdSegmentCount": 5,
-  "skippedEmptyCount": 0, "failedCount": 0, "errors": [] }
+  "skippedEmptyCount": 0, "failedCount": 0, "batchCount": 2, "individualRetryCount": 0,
+  "errors": [] }
 // graph_write
 { "writtenDiscussionCount": 10, "skippedNoEnrichmentCount": 0,
   "failedCount": 0, "errors": [] }
