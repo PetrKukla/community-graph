@@ -40,7 +40,29 @@ export default defineConfig({
     // dev only: proxy /api (REST + the /api/v1/stream WebSocket) to the Bun service so the
     // browser stays same-origin and no CORS is involved.
     proxy: {
-      '/api': { target: apiTarget, changeOrigin: true, ws: true }
+      '/api': {
+        target: apiTarget,
+        changeOrigin: true,
+        ws: true,
+        // The /api/v1/stream WebSocket resets (ECONNRESET) every time the Bun API
+        // restarts under `bun --watch`, on HMR reloads and on tab close. Vite logs
+        // the full stack for each; swap its `error` listener for one that stays
+        // quiet on those benign resets but still reports real proxy failures.
+        configure(proxy) {
+          process.nextTick(() => {
+            proxy.removeAllListeners('error');
+            proxy.on('error', (err, _req, res) => {
+              const code = (err as NodeJS.ErrnoException).code;
+              if (code !== 'ECONNRESET' && code !== 'EPIPE') {
+                console.error(
+                  `[vite] api proxy error: ${err.stack ?? err.message}`
+                );
+              }
+              if (res && 'end' in res && !res.writableEnded) res.end();
+            });
+          });
+        }
+      }
     }
   }
 });
