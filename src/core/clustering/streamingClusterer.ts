@@ -1,5 +1,5 @@
-import type { EmbeddingProvider } from "../ports/EmbeddingProvider";
-import type { ClusterableMessage } from "./types";
+import type { EmbeddingProvider } from '../ports/EmbeddingProvider';
+import type { ClusterableMessage } from './types';
 
 interface ActiveSubCluster {
   index: number;
@@ -24,7 +24,11 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   return dot;
 }
 
-function updateCentroid(centroid: Float32Array, memberCount: number, embedding: Float32Array): Float32Array {
+function updateCentroid(
+  centroid: Float32Array,
+  memberCount: number,
+  embedding: Float32Array
+): Float32Array {
   const next = new Float32Array(centroid.length);
   for (let i = 0; i < centroid.length; i++) {
     next[i] = (centroid[i]! * memberCount + embedding[i]!) / (memberCount + 1);
@@ -40,11 +44,18 @@ export async function clusterLongMessages(
   messages: ClusterableMessage[],
   embeddingProvider: EmbeddingProvider,
   similarityThreshold: number,
-  activeSubclusterIdleMinutes: number,
-): Promise<{ assignments: SubClusterAssignment[]; subClusterCount: number; centroids: Float32Array[] }> {
-  if (messages.length === 0) return { assignments: [], subClusterCount: 0, centroids: [] };
+  activeSubclusterIdleMinutes: number
+): Promise<{
+  assignments: SubClusterAssignment[];
+  subClusterCount: number;
+  centroids: Float32Array[];
+}> {
+  if (messages.length === 0)
+    return { assignments: [], subClusterCount: 0, centroids: [] };
 
-  const embeddings = await embeddingProvider.embed(messages.map((m) => m.content));
+  const embeddings = await embeddingProvider.embed(
+    messages.map((m) => m.content)
+  );
   const idleMs = activeSubclusterIdleMinutes * 60_000;
 
   const active: ActiveSubCluster[] = [];
@@ -65,14 +76,20 @@ export async function clusterLongMessages(
     let best: { cluster: ActiveSubCluster; score: number } | null = null;
     for (const cluster of active) {
       let score = cosineSimilarity(embedding, cluster.centroid);
-      if (cluster.recentAuthors.has(msg.authorId)) score += AUTHOR_CONTINUITY_BONUS;
-      if (msg.mentions?.some((userId) => cluster.recentAuthors.has(userId))) score += MENTION_BONUS;
+      if (cluster.recentAuthors.has(msg.authorId))
+        score += AUTHOR_CONTINUITY_BONUS;
+      if (msg.mentions?.some((userId) => cluster.recentAuthors.has(userId)))
+        score += MENTION_BONUS;
       if (!best || score > best.score) best = { cluster, score };
     }
 
     if (best && best.score >= similarityThreshold) {
       const cluster = best.cluster;
-      cluster.centroid = updateCentroid(cluster.centroid, cluster.memberCount, embedding);
+      cluster.centroid = updateCentroid(
+        cluster.centroid,
+        cluster.memberCount,
+        embedding
+      );
       cluster.memberCount += 1;
       cluster.lastMessageAt = msgTs;
       cluster.recentAuthors.add(msg.authorId);
@@ -83,7 +100,7 @@ export async function clusterLongMessages(
         centroid: embedding,
         memberCount: 1,
         lastMessageAt: msgTs,
-        recentAuthors: new Set([msg.authorId]),
+        recentAuthors: new Set([msg.authorId])
       };
       active.push(cluster);
       allClusters.push(cluster);
@@ -91,6 +108,8 @@ export async function clusterLongMessages(
     }
   }
 
-  const centroids = allClusters.sort((a, b) => a.index - b.index).map((c) => c.centroid);
+  const centroids = allClusters
+    .sort((a, b) => a.index - b.index)
+    .map((c) => c.centroid);
   return { assignments, subClusterCount: nextIndex, centroids };
 }

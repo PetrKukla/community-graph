@@ -1,8 +1,8 @@
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
-import { config } from "../../../config/config";
-import type { LLMCallRecord } from "../../../adapters/llm/LoggingLLMProvider";
-import { db } from "../client";
-import { llmCalls } from "../schema";
+import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
+import { config } from '../../../config/config';
+import type { LLMCallRecord } from '../../../adapters/llm/LoggingLLMProvider';
+import { db } from '../client';
+import { llmCalls } from '../schema';
 
 export function insertLlmCall(record: LLMCallRecord): void {
   db.insert(llmCalls)
@@ -18,7 +18,7 @@ export function insertLlmCall(record: LLMCallRecord): void {
       status: record.status,
       promptTokens: record.promptTokens,
       completionTokens: record.completionTokens,
-      error: record.error,
+      error: record.error
     })
     .run();
 }
@@ -34,11 +34,17 @@ export function maybePruneLlmCalls(): void {
   if (now - lastPruneAt < PRUNE_INTERVAL_MS) return;
   lastPruneAt = now;
 
-  const cutoff = new Date(now - config.web.llm_calls_retention_days * 86_400_000).toISOString();
+  const cutoff = new Date(
+    now - config.web.llm_calls_retention_days * 86_400_000
+  ).toISOString();
   db.delete(llmCalls).where(lt(llmCalls.startedAt, cutoff)).run();
 
   const max = config.web.llm_calls_max_rows;
-  const total = db.select({ n: sql<number>`count(*)` }).from(llmCalls).get()?.n ?? 0;
+  const total =
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(llmCalls)
+      .get()?.n ?? 0;
   if (total > max) {
     const oldestToKeep = db
       .select({ startedAt: llmCalls.startedAt })
@@ -48,7 +54,9 @@ export function maybePruneLlmCalls(): void {
       .offset(max - 1)
       .get();
     if (oldestToKeep) {
-      db.delete(llmCalls).where(lt(llmCalls.startedAt, oldestToKeep.startedAt)).run();
+      db.delete(llmCalls)
+        .where(lt(llmCalls.startedAt, oldestToKeep.startedAt))
+        .run();
     }
   }
 }
@@ -92,12 +100,15 @@ export function listLlmCalls(params: ListLlmCallsParams): ListLlmCallsResult {
   if (params.channelId) filters.push(eq(llmCalls.channelId, params.channelId));
 
   if (params.cursor) {
-    const sep = params.cursor.lastIndexOf("__");
+    const sep = params.cursor.lastIndexOf('__');
     if (sep > 0) {
       const cStart = params.cursor.slice(0, sep);
       const cId = params.cursor.slice(sep + 2);
       filters.push(
-        or(lt(llmCalls.startedAt, cStart), and(eq(llmCalls.startedAt, cStart), lt(llmCalls.id, cId))),
+        or(
+          lt(llmCalls.startedAt, cStart),
+          and(eq(llmCalls.startedAt, cStart), lt(llmCalls.id, cId))
+        )
       );
     }
   }
@@ -127,8 +138,8 @@ export function listLlmCalls(params: ListLlmCallsParams): ListLlmCallsResult {
       status: r.status,
       prompt_tokens: r.promptTokens,
       completion_tokens: r.completionTokens,
-      error: r.error,
+      error: r.error
     })),
-    next_cursor: hasMore && last ? `${last.startedAt}__${last.id}` : null,
+    next_cursor: hasMore && last ? `${last.startedAt}__${last.id}` : null
   };
 }

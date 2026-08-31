@@ -1,4 +1,4 @@
-import type { ClusterableMessage } from "./types";
+import type { ClusterableMessage } from './types';
 
 export interface TimeBlock {
   messages: ClusterableMessage[];
@@ -17,7 +17,7 @@ export interface TimeBlock {
 export function splitIntoTimeBlocks(
   messages: ClusterableMessage[],
   silenceGapMinutes: number,
-  maxTimestampInScanWindow: string,
+  maxTimestampInScanWindow: string
 ): TimeBlock[] {
   if (messages.length === 0) return [];
 
@@ -28,7 +28,8 @@ export function splitIntoTimeBlocks(
   for (let i = 1; i < messages.length; i++) {
     const prev = messages[i - 1]!;
     const msg = messages[i]!;
-    const gap = new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime();
+    const gap =
+      new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime();
     if (gap > gapMs) {
       blocks.push(finalize(current));
       current = [msg];
@@ -50,7 +51,7 @@ export function splitIntoTimeBlocks(
       messages: msgs,
       startAt: msgs[0]!.createdAt,
       endAt: msgs[msgs.length - 1]!.createdAt,
-      closed: true, // every block except the last is closed by construction (we saw the gap after it)
+      closed: true // every block except the last is closed by construction (we saw the gap after it)
     };
   }
 }

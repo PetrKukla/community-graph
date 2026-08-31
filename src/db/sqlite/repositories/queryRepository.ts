@@ -1,8 +1,11 @@
-import { eq, inArray } from "drizzle-orm";
-import { db } from "../client";
-import { discussionEnrichment, messages, users } from "../schema";
-import type { EnrichmentBits, SqliteContextSource } from "../../../core/query/contextBuilder";
-import type { RawMessage } from "../../../core/query/types";
+import { eq, inArray } from 'drizzle-orm';
+import { db } from '../client';
+import { discussionEnrichment, messages, users } from '../schema';
+import type {
+  EnrichmentBits,
+  SqliteContextSource
+} from '../../../core/query/contextBuilder';
+import type { RawMessage } from '../../../core/query/types';
 
 /**
  * The enrichment detail the graph does not carry on the Discussion node (key_points, typed
@@ -18,7 +21,7 @@ export function getEnrichmentBits(ids: string[]): Map<string, EnrichmentBits> {
       summary: discussionEnrichment.summary,
       topics: discussionEnrichment.topics,
       entities: discussionEnrichment.entities,
-      keyPoints: discussionEnrichment.keyPoints,
+      keyPoints: discussionEnrichment.keyPoints
     })
     .from(discussionEnrichment)
     .where(inArray(discussionEnrichment.discussionId, ids))
@@ -29,14 +32,17 @@ export function getEnrichmentBits(ids: string[]): Map<string, EnrichmentBits> {
       keyPoints: r.keyPoints ?? [],
       summary: r.summary ?? null,
       topics: r.topics ?? [],
-      entities: r.entities ?? [],
+      entities: r.entities ?? []
     });
   }
   return out;
 }
 
 /** Chronological raw messages of one discussion, oldest first, capped at `limit`. */
-export function getDiscussionMessagesForQuery(discussionId: string, limit: number): RawMessage[] {
+export function getDiscussionMessagesForQuery(
+  discussionId: string,
+  limit: number
+): RawMessage[] {
   if (limit <= 0) return [];
   const rows = db
     .select({
@@ -44,7 +50,7 @@ export function getDiscussionMessagesForQuery(discussionId: string, limit: numbe
       content: messages.content,
       createdAt: messages.createdAt,
       username: users.username,
-      displayName: users.displayName,
+      displayName: users.displayName
     })
     .from(messages)
     .leftJoin(users, eq(users.id, messages.authorId))
@@ -56,12 +62,12 @@ export function getDiscussionMessagesForQuery(discussionId: string, limit: numbe
   return rows.map((r) => ({
     authorLabel: r.displayName ?? r.username ?? r.authorId,
     content: r.content,
-    createdAt: r.createdAt,
+    createdAt: r.createdAt
   }));
 }
 
 /** Real SQLite implementation of the context source port, wired into the query route. */
 export const sqliteContextSource: SqliteContextSource = {
   getEnrichmentBits,
-  getDiscussionMessagesForQuery,
+  getDiscussionMessagesForQuery
 };

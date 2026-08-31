@@ -1,19 +1,19 @@
-export type Theme = "light" | "dark" | "system";
+export type Theme = 'light' | 'dark' | 'system';
 
-const STORAGE_KEY = "cg:theme";
+const STORAGE_KEY = 'cg:theme';
 
 function read(): Theme {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === "light" || v === "dark" || v === "system") return v;
+    if (v === 'light' || v === 'dark' || v === 'system') return v;
   } catch {
     /* storage disabled */
   }
-  return "system";
+  return 'system';
 }
 
 function prefersDark(): boolean {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
 class ThemeStore {
@@ -26,8 +26,12 @@ class ThemeStore {
   }
 
   /** What is actually shown right now. */
-  get resolved(): "light" | "dark" {
-    return this.#theme === "system" ? (this.#systemDark ? "dark" : "light") : this.#theme;
+  get resolved(): 'light' | 'dark' {
+    return this.#theme === 'system'
+      ? this.#systemDark
+        ? 'dark'
+        : 'light'
+      : this.#theme;
   }
 
   set(next: Theme): void {
@@ -42,23 +46,23 @@ class ThemeStore {
 
   /** Flip between light and dark, dropping "system". */
   toggle(): void {
-    this.set(this.resolved === "dark" ? "light" : "dark");
+    this.set(this.resolved === 'dark' ? 'light' : 'dark');
   }
 
   #apply(): void {
-    document.documentElement.classList.toggle("dark", this.resolved === "dark");
+    document.documentElement.classList.toggle('dark', this.resolved === 'dark');
   }
 
   /** Apply the current theme and track OS changes. Returns a cleanup function for `$effect`. */
   init(): () => void {
     this.#apply();
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = (e: MediaQueryListEvent) => {
       this.#systemDark = e.matches;
       this.#apply();
     };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
   }
 }
 

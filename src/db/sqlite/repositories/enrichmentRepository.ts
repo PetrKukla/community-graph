@@ -1,8 +1,17 @@
-import { randomUUID } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
-import { db } from "../client";
-import { messages, users, discussionsLocal, discussionEnrichment } from "../schema";
-import type { EnrichableMessage, DiscussionEnrichment, EnrichmentSegment } from "../../../core/enrichment/types";
+import { randomUUID } from 'node:crypto';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { db } from '../client';
+import {
+  messages,
+  users,
+  discussionsLocal,
+  discussionEnrichment
+} from '../schema';
+import type {
+  EnrichableMessage,
+  DiscussionEnrichment,
+  EnrichmentSegment
+} from '../../../core/enrichment/types';
 
 export interface EnrichableDiscussionRow {
   id: string;
@@ -12,26 +21,30 @@ export interface EnrichableDiscussionRow {
 }
 
 /** Discussions still awaiting (re-)enrichment for a channel, oldest block first. */
-export function getEnrichableDiscussions(channelId: string): EnrichableDiscussionRow[] {
+export function getEnrichableDiscussions(
+  channelId: string
+): EnrichableDiscussionRow[] {
   return db
     .select({
       id: discussionsLocal.id,
       channelId: discussionsLocal.channelId,
       threadId: discussionsLocal.threadId,
-      status: discussionsLocal.status,
+      status: discussionsLocal.status
     })
     .from(discussionsLocal)
     .where(
       and(
         eq(discussionsLocal.channelId, channelId),
-        inArray(discussionsLocal.status, ["clustering", "needs_reenrichment"]),
-      ),
+        inArray(discussionsLocal.status, ['clustering', 'needs_reenrichment'])
+      )
     )
     .orderBy(discussionsLocal.blockStartAt)
     .all();
 }
 
-export function getDiscussionMessages(discussionId: string): EnrichableMessage[] {
+export function getDiscussionMessages(
+  discussionId: string
+): EnrichableMessage[] {
   const rows = db
     .select({
       id: messages.id,
@@ -39,7 +52,7 @@ export function getDiscussionMessages(discussionId: string): EnrichableMessage[]
       content: messages.content,
       createdAt: messages.createdAt,
       username: users.username,
-      displayName: users.displayName,
+      displayName: users.displayName
     })
     .from(messages)
     .leftJoin(users, eq(users.id, messages.authorId))
@@ -52,7 +65,7 @@ export function getDiscussionMessages(discussionId: string): EnrichableMessage[]
     authorId: r.authorId,
     authorLabel: r.displayName ?? r.username ?? r.authorId,
     content: r.content,
-    createdAt: r.createdAt,
+    createdAt: r.createdAt
   }));
 }
 
@@ -75,15 +88,27 @@ export function resetPriorEnrichment(discussionId: string): void {
         .set({ discussionId })
         .where(inArray(messages.discussionId, childIds))
         .run();
-      tx.delete(discussionEnrichment).where(inArray(discussionEnrichment.discussionId, childIds)).run();
-      tx.delete(discussionsLocal).where(inArray(discussionsLocal.id, childIds)).run();
+      tx.delete(discussionEnrichment)
+        .where(inArray(discussionEnrichment.discussionId, childIds))
+        .run();
+      tx.delete(discussionsLocal)
+        .where(inArray(discussionsLocal.id, childIds))
+        .run();
     }
 
-    tx.delete(discussionEnrichment).where(eq(discussionEnrichment.discussionId, discussionId)).run();
+    tx.delete(discussionEnrichment)
+      .where(eq(discussionEnrichment.discussionId, discussionId))
+      .run();
   });
 }
 
-function enrichmentValues(discussionId: string, e: DiscussionEnrichment, embedding: Float32Array | null, raw: string, now: string) {
+function enrichmentValues(
+  discussionId: string,
+  e: DiscussionEnrichment,
+  embedding: Float32Array | null,
+  raw: string,
+  now: string
+) {
   return {
     discussionId,
     title: e.title,
@@ -96,9 +121,15 @@ function enrichmentValues(discussionId: string, e: DiscussionEnrichment, embeddi
     language: e.language,
     discussionType: e.discussionType,
     resolved: e.resolved,
-    embedding: embedding ? Buffer.from(embedding.buffer, embedding.byteOffset, embedding.byteLength) : null,
+    embedding: embedding
+      ? Buffer.from(
+          embedding.buffer,
+          embedding.byteOffset,
+          embedding.byteLength
+        )
+      : null,
     rawLlmResponse: raw,
-    enrichedAt: now,
+    enrichedAt: now
   };
 }
 
@@ -107,16 +138,28 @@ export function persistSingleEnrichment(
   discussionId: string,
   enrichment: DiscussionEnrichment,
   embedding: Float32Array | null,
-  raw: string,
+  raw: string
 ): void {
   const now = new Date().toISOString();
   db.transaction((tx) => {
-    const values = enrichmentValues(discussionId, enrichment, embedding, raw, now);
+    const values = enrichmentValues(
+      discussionId,
+      enrichment,
+      embedding,
+      raw,
+      now
+    );
     tx.insert(discussionEnrichment)
       .values(values)
-      .onConflictDoUpdate({ target: discussionEnrichment.discussionId, set: values })
+      .onConflictDoUpdate({
+        target: discussionEnrichment.discussionId,
+        set: values
+      })
       .run();
-    tx.update(discussionsLocal).set({ status: "enriched" }).where(eq(discussionsLocal.id, discussionId)).run();
+    tx.update(discussionsLocal)
+      .set({ status: 'enriched' })
+      .where(eq(discussionsLocal.id, discussionId))
+      .run();
   });
 }
 
@@ -132,7 +175,7 @@ export interface PersistedSegment {
 export function persistSplitEnrichment(
   parent: EnrichableDiscussionRow,
   segments: EnrichmentSegment[],
-  raw: string,
+  raw: string
 ): PersistedSegment[] {
   const now = new Date().toISOString();
   return db.transaction((tx) => {
@@ -146,9 +189,9 @@ export function persistSplitEnrichment(
           threadId: parent.threadId,
           blockStartAt: seg.blockStartAt,
           blockEndAt: seg.blockEndAt,
-          status: "enriched",
+          status: 'enriched',
           messageCount: seg.messageIds.length,
-          parentDiscussionId: parent.id,
+          parentDiscussionId: parent.id
         })
         .run();
       if (seg.messageIds.length > 0) {
@@ -158,13 +201,18 @@ export function persistSplitEnrichment(
           .run();
       }
       tx.insert(discussionEnrichment)
-        .values(enrichmentValues(childId, seg.enrichment, seg.embedding, raw, now))
+        .values(
+          enrichmentValues(childId, seg.enrichment, seg.embedding, raw, now)
+        )
         .run();
-      persisted.push({ discussionId: childId, messageCount: seg.messageIds.length });
+      persisted.push({
+        discussionId: childId,
+        messageCount: seg.messageIds.length
+      });
     }
 
     tx.update(discussionsLocal)
-      .set({ status: "split", messageCount: sql`0` })
+      .set({ status: 'split', messageCount: sql`0` })
       .where(eq(discussionsLocal.id, parent.id))
       .run();
 
@@ -192,8 +240,14 @@ function loadMessageIds(discussionId: string): string[] {
     .map((r) => r.id);
 }
 
-export function loadEnrichmentRow(discussionId: string): Record<string, unknown> | null {
-  const row = db.select().from(discussionEnrichment).where(eq(discussionEnrichment.discussionId, discussionId)).get();
+export function loadEnrichmentRow(
+  discussionId: string
+): Record<string, unknown> | null {
+  const row = db
+    .select()
+    .from(discussionEnrichment)
+    .where(eq(discussionEnrichment.discussionId, discussionId))
+    .get();
   if (!row) return null;
   return {
     title: row.title,
@@ -206,7 +260,7 @@ export function loadEnrichmentRow(discussionId: string): Record<string, unknown>
     language: row.language,
     discussion_type: row.discussionType,
     resolved: row.resolved,
-    enriched_at: row.enrichedAt,
+    enriched_at: row.enrichedAt
   };
 }
 
@@ -216,19 +270,21 @@ export function loadEnrichmentRow(discussionId: string): Record<string, unknown>
  * - a directly-enriched discussion (or a single child) -> its enrichment inline
  * - not yet enriched -> null
  */
-export function getEnrichmentByDiscussionId(discussionId: string): EnrichmentView | null {
+export function getEnrichmentByDiscussionId(
+  discussionId: string
+): EnrichmentView | null {
   const discussion = db
     .select({
       id: discussionsLocal.id,
       status: discussionsLocal.status,
-      parentDiscussionId: discussionsLocal.parentDiscussionId,
+      parentDiscussionId: discussionsLocal.parentDiscussionId
     })
     .from(discussionsLocal)
     .where(eq(discussionsLocal.id, discussionId))
     .get();
   if (!discussion) return null;
 
-  if (discussion.status === "split") {
+  if (discussion.status === 'split') {
     const children = db
       .select({ id: discussionsLocal.id })
       .from(discussionsLocal)
@@ -244,12 +300,12 @@ export function getEnrichmentByDiscussionId(discussionId: string): EnrichmentVie
       enrichment: null,
       segments: children.map((c) => ({
         discussion_id: c.id,
-        status: "enriched",
+        status: 'enriched',
         parent_discussion_id: discussionId,
         split: false,
         message_ids: loadMessageIds(c.id),
-        enrichment: loadEnrichmentRow(c.id),
-      })),
+        enrichment: loadEnrichmentRow(c.id)
+      }))
     };
   }
 
@@ -261,6 +317,6 @@ export function getEnrichmentByDiscussionId(discussionId: string): EnrichmentVie
     parent_discussion_id: discussion.parentDiscussionId,
     split: false,
     message_ids: loadMessageIds(discussionId),
-    enrichment,
+    enrichment
   };
 }

@@ -14,7 +14,7 @@ export interface MessageAssignment {
   discussionId: string; // existing (reply target / extended thread) or newly generated uuid
   isNewDiscussion: boolean;
   continuationOfDiscussionId?: string;
-  continuationReason?: "explicit_reply";
+  continuationReason?: 'explicit_reply';
 }
 
 export interface FinalizedDiscussion {
@@ -26,7 +26,7 @@ export interface FinalizedDiscussion {
   messageCount: number;
   centroidEmbedding: Float32Array | null;
   continuationOfDiscussionId?: string;
-  continuationReason?: "explicit_reply";
+  continuationReason?: 'explicit_reply';
   /** true when this row already existed (thread extension) and should be UPDATEd, not INSERTed */
   isExtension: boolean;
 }

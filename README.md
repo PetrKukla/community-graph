@@ -11,11 +11,11 @@ Podrobný návrh (architektura, zdůvodnění rozhodnutí, budoucí kroky) je v 
 
 Proces má tři samostatné, nezávisle spustitelné kroky, aby šel každý zvlášť vyladit:
 
-| # | Krok | Co dělá | Kde končí |
-|---|---|---|---|
-| 1 | **ingest + clusterizace** | zprávy se uloží a rozdělí do tematických diskuzí (time-gapy, Discord thready/replies, embeddingy) | SQLite |
-| 2 | **AI enrichment** | každá diskuze projde LLM (title, summary, topics, entities, sentiment, key points) — model ji může i rozdělit na menší | SQLite |
-| 3 | **graph write** | obohacené diskuze se idempotentně zapíšou do Neo4j jako knowledge graph | Neo4j |
+| #   | Krok                      | Co dělá                                                                                                                | Kde končí |
+| --- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------- |
+| 1   | **ingest + clusterizace** | zprávy se uloží a rozdělí do tematických diskuzí (time-gapy, Discord thready/replies, embeddingy)                      | SQLite    |
+| 2   | **AI enrichment**         | každá diskuze projde LLM (title, summary, topics, entities, sentiment, key points) — model ji může i rozdělit na menší | SQLite    |
+| 3   | **graph write**           | obohacené diskuze se idempotentně zapíšou do Neo4j jako knowledge graph                                                | Neo4j     |
 
 SQLite drží syrová data a mezistavy, Neo4j je jediný výstupní store.
 
@@ -72,16 +72,16 @@ Dvě oddělené vrstvy:
 
 ### `.env`
 
-| Proměnná | Popis |
-|---|---|
-| `SQLITE_PATH` | Cesta k SQLite souboru (výchozí `./data/community-graph.sqlite`). Adresář se vytvoří sám. |
-| `API_KEY` | Musí ho klient posílat v hlavičce `X-API-Key` na všech `/api/v1/*` endpointech. |
-| `LLM_ANTHROPIC_API_KEY` / `LLM_GEMINI_API_KEY` | API klíč — jen pro odpovídajícího providera. |
-| `LLM_OPENAI_COMPATIBLE_BASE_URL` / `_API_KEY` | Base URL a klíč OpenAI-kompatibilního serveru (lokální Ollama/LM Studio klíč většinou nechtějí). |
-| `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` | Připojení k Neo4j (krok 3). Výchozí hodnoty sedí na `docker-compose.yml`. |
-| `PORT` / `HOSTNAME` | Volitelný override `[server].port` / `[server].host` pro deploy (Docker, PaaS). |
-| `VITE_API_BASE` | **Jen dev.** Base URL API pro Vite dev server (výchozí odvozeno z `[server].port`). V produkci je frontend na stejném originu, nenastavuj. |
-| `VITE_API_KEY` | **Jen dev.** Hodnota `API_KEY`, aby klientský bundl mohl volat chráněné `/api/v1/*`. V produkci klíč přidává reverzní proxy, nebo se zadá jednou v UI (uloží se do `localStorage`). |
+| Proměnná                                       | Popis                                                                                                                                                                               |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SQLITE_PATH`                                  | Cesta k SQLite souboru (výchozí `./data/community-graph.sqlite`). Adresář se vytvoří sám.                                                                                           |
+| `API_KEY`                                      | Musí ho klient posílat v hlavičce `X-API-Key` na všech `/api/v1/*` endpointech.                                                                                                     |
+| `LLM_ANTHROPIC_API_KEY` / `LLM_GEMINI_API_KEY` | API klíč — jen pro odpovídajícího providera.                                                                                                                                        |
+| `LLM_OPENAI_COMPATIBLE_BASE_URL` / `_API_KEY`  | Base URL a klíč OpenAI-kompatibilního serveru (lokální Ollama/LM Studio klíč většinou nechtějí).                                                                                    |
+| `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD`  | Připojení k Neo4j (krok 3). Výchozí hodnoty sedí na `docker-compose.yml`.                                                                                                           |
+| `PORT` / `HOSTNAME`                            | Volitelný override `[server].port` / `[server].host` pro deploy (Docker, PaaS).                                                                                                     |
+| `VITE_API_BASE`                                | **Jen dev.** Base URL API pro Vite dev server (výchozí odvozeno z `[server].port`). V produkci je frontend na stejném originu, nenastavuj.                                          |
+| `VITE_API_KEY`                                 | **Jen dev.** Hodnota `API_KEY`, aby klientský bundl mohl volat chráněné `/api/v1/*`. V produkci klíč přidává reverzní proxy, nebo se zadá jednou v UI (uloží se do `localStorage`). |
 
 Vyplňuj jen klíče pro providera zvoleného v `config.toml`. Chybějící LLM klíč → `enrich` job
 skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`. Proměnné s prefixem
@@ -89,42 +89,42 @@ skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`. 
 
 ### `config.toml` — laditelné parametry
 
-| Klíč | Význam |
-|---|---|
-| `server.port` | Port HTTP serveru. |
-| `clustering.silence_gap_minutes` (**M**) | Mezera ticha, po které se časový blok považuje za uzavřený. Vyšší = diskuze se míň tříští na kusy kvůli krátkým pauzám. |
-| `clustering.short_message_word_limit` (**W**) | Pod tímto počtem slov se pro zprávu negeneruje embedding — jen se přilepí k předchozí diskuzi nebo k reply cíli. |
-| `clustering.similarity_threshold` (**τ**) | Práh cosine similarity (0–1) pro přiřazení zprávy k existujícímu sub-clusteru. Nižší = míň roztříštěné; vyšší = míň slévání různých témat. |
-| `clustering.active_subcluster_idle_minutes` | Po jaké neaktivitě v bloku se sub-cluster přestane porovnávat. Vyšší = přesnější, ale pomalejší. |
-| `clustering.continuation_similarity_threshold` (**θ**), `continuation_lookback_days` | Pro sémantické `CONTINUATION_OF`. *Zatím nevyužito (patří ke kroku 3).* |
-| `embedding.model` / `embedding.dimensions` | Model pro `@huggingface/transformers` (lokální ONNX, in-process) a jeho dimenze. Musí si odpovídat (`e5-small` = 384, `e5-base` = 768). |
-| `llm.provider` | `anthropic` \| `openai-compatible` \| `gemini`. Cílový stav je vlastní lokální `openai-compatible`. |
-| `llm.model` | Název modelu u zvoleného providera. |
-| `llm.max_tokens` | Strop na délku odpovědi. Zvyš, když se odpověď u velkých rozdělených diskuzí ořezává. |
-| `llm.temperature` | **Anthropic adaptér ji ignoruje** (Claude 4.5+ ji odmítá); platí pro `openai-compatible` a `gemini`. |
-| `llm.max_messages_per_call` | Kolik zpráv nejvýš jde do jedné výzvy (ochrana kontextu); delší diskuze se ořízne na prvních N. |
-| `llm.request_timeout_ms` | Timeout jednoho volání LLM. Zvyš u pomalých lokálních modelů. |
-| `web.enabled` | `false` = neservírovat `web/dist` ani endpointy `/api/v1/stream\|stats\|ai/calls\|graph/*`. |
-| `web.dev_port` | Port Vite dev serveru (`bun run web:dev`); ten proxuje `/api` na `[server].port`. |
-| `web.llm_calls_retention_days` / `web.llm_calls_max_rows` | Retence tabulky `llm_calls` (dashboard buffer): při zápisu se občas smažou řádky starší než N dní nebo nad limitem řádků. |
-| `web.stats_tick_seconds` | Interval přepočtu levného `funnel`/`totals` agregátu, který jde WS klientům jako `stats.tick`. Počítá se jen když je aspoň jeden klient připojený. |
-| `web.graph_overview_limit` | Cílový horní počet uzlů v prvním vykreslení grafu; zbytek se dolazí rozbalením sousedů. |
-| `dictionary.max_ids_per_request` | Strop na součet `channels + users` v jednom `POST /api/v1/dictionary`. |
-| `dictionary.inline_graph_propagation_max` | Do tolika změněných ID se propagace názvů do Neo4j udělá přímo v requestu; nad = job `name_sync`. |
-| `pipeline.include_graph_write` | Default pro `POST /api/v1/pipeline`, když tělo nemá `options.skip_graph_write`. `false` = sjednocený běh končí po enrichmentu. |
-| `query.vector_top_k` | Kolik kandidátů z vektorového indexu se vezme na jednu variantu dotazu. |
-| `query.search_query_variants` | Strop na počet přeformulování otázky, které vygeneruje plánovač. |
-| `query.anchor_limit` | Strop diskuzí dotažených přes shodu názvu tématu/entity (Neo4j fulltext). |
-| `query.expansion_seed_count` / `query.expansion_fanout` | Kolik nejlepších kandidátů jde do grafové expanze a kolik sousedů se z každého vezme. |
-| `query.evidence_set_size` | Kolik diskuzí se pošle do syntézy odpovědi. |
-| `query.raw_message_discussions` / `query.raw_messages_per_discussion` | U kolika top diskuzí a kolik syrových zpráv z SQLite se přidá do kontextu (`0` = jen shrnutí). |
-| `query.context_token_budget` | Odhadovaný strop kontextu; ořezává se od nejníže skórujících diskuzí (nejdřív syrové zprávy, pak celé bloky). |
-| `query.min_candidate_score` | Práh skóre. Když po fúzi nic neprojde, endpoint vrátí `confidence: "low"` bez volání LLM syntézy. |
-| `query.recency_half_life_days` | Po kolika dnech klesne recency bonus na polovinu. |
-| `query.weight_vector` / `weight_anchor` / `weight_expansion` / `weight_recency` | Váhy složek finálního skóre kandidáta. |
-| `query.weight_type_preference` | Měkký bonus, když typ diskuze sedí na `preferred_discussion_types` z plánovače. Nefiltruje — jen řadí. |
-| `query.opinion_sentiment_diversity` | U názorových otázek držet v evidence setu i menšinový sentiment (pozitivní/negativní). |
-| `query.vocab_sample_size` | Kolik nejčastějších názvů `Topic`/`Entity` se dá plánovači jako slovník grafu. |
+| Klíč                                                                                 | Význam                                                                                                                                             |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server.port`                                                                        | Port HTTP serveru.                                                                                                                                 |
+| `clustering.silence_gap_minutes` (**M**)                                             | Mezera ticha, po které se časový blok považuje za uzavřený. Vyšší = diskuze se míň tříští na kusy kvůli krátkým pauzám.                            |
+| `clustering.short_message_word_limit` (**W**)                                        | Pod tímto počtem slov se pro zprávu negeneruje embedding — jen se přilepí k předchozí diskuzi nebo k reply cíli.                                   |
+| `clustering.similarity_threshold` (**τ**)                                            | Práh cosine similarity (0–1) pro přiřazení zprávy k existujícímu sub-clusteru. Nižší = míň roztříštěné; vyšší = míň slévání různých témat.         |
+| `clustering.active_subcluster_idle_minutes`                                          | Po jaké neaktivitě v bloku se sub-cluster přestane porovnávat. Vyšší = přesnější, ale pomalejší.                                                   |
+| `clustering.continuation_similarity_threshold` (**θ**), `continuation_lookback_days` | Pro sémantické `CONTINUATION_OF`. _Zatím nevyužito (patří ke kroku 3)._                                                                            |
+| `embedding.model` / `embedding.dimensions`                                           | Model pro `@huggingface/transformers` (lokální ONNX, in-process) a jeho dimenze. Musí si odpovídat (`e5-small` = 384, `e5-base` = 768).            |
+| `llm.provider`                                                                       | `anthropic` \| `openai-compatible` \| `gemini`. Cílový stav je vlastní lokální `openai-compatible`.                                                |
+| `llm.model`                                                                          | Název modelu u zvoleného providera.                                                                                                                |
+| `llm.max_tokens`                                                                     | Strop na délku odpovědi. Zvyš, když se odpověď u velkých rozdělených diskuzí ořezává.                                                              |
+| `llm.temperature`                                                                    | **Anthropic adaptér ji ignoruje** (Claude 4.5+ ji odmítá); platí pro `openai-compatible` a `gemini`.                                               |
+| `llm.max_messages_per_call`                                                          | Kolik zpráv nejvýš jde do jedné výzvy (ochrana kontextu); delší diskuze se ořízne na prvních N.                                                    |
+| `llm.request_timeout_ms`                                                             | Timeout jednoho volání LLM. Zvyš u pomalých lokálních modelů.                                                                                      |
+| `web.enabled`                                                                        | `false` = neservírovat `web/dist` ani endpointy `/api/v1/stream\|stats\|ai/calls\|graph/*`.                                                        |
+| `web.dev_port`                                                                       | Port Vite dev serveru (`bun run web:dev`); ten proxuje `/api` na `[server].port`.                                                                  |
+| `web.llm_calls_retention_days` / `web.llm_calls_max_rows`                            | Retence tabulky `llm_calls` (dashboard buffer): při zápisu se občas smažou řádky starší než N dní nebo nad limitem řádků.                          |
+| `web.stats_tick_seconds`                                                             | Interval přepočtu levného `funnel`/`totals` agregátu, který jde WS klientům jako `stats.tick`. Počítá se jen když je aspoň jeden klient připojený. |
+| `web.graph_overview_limit`                                                           | Cílový horní počet uzlů v prvním vykreslení grafu; zbytek se dolazí rozbalením sousedů.                                                            |
+| `dictionary.max_ids_per_request`                                                     | Strop na součet `channels + users` v jednom `POST /api/v1/dictionary`.                                                                             |
+| `dictionary.inline_graph_propagation_max`                                            | Do tolika změněných ID se propagace názvů do Neo4j udělá přímo v requestu; nad = job `name_sync`.                                                  |
+| `pipeline.include_graph_write`                                                       | Default pro `POST /api/v1/pipeline`, když tělo nemá `options.skip_graph_write`. `false` = sjednocený běh končí po enrichmentu.                     |
+| `query.vector_top_k`                                                                 | Kolik kandidátů z vektorového indexu se vezme na jednu variantu dotazu.                                                                            |
+| `query.search_query_variants`                                                        | Strop na počet přeformulování otázky, které vygeneruje plánovač.                                                                                   |
+| `query.anchor_limit`                                                                 | Strop diskuzí dotažených přes shodu názvu tématu/entity (Neo4j fulltext).                                                                          |
+| `query.expansion_seed_count` / `query.expansion_fanout`                              | Kolik nejlepších kandidátů jde do grafové expanze a kolik sousedů se z každého vezme.                                                              |
+| `query.evidence_set_size`                                                            | Kolik diskuzí se pošle do syntézy odpovědi.                                                                                                        |
+| `query.raw_message_discussions` / `query.raw_messages_per_discussion`                | U kolika top diskuzí a kolik syrových zpráv z SQLite se přidá do kontextu (`0` = jen shrnutí).                                                     |
+| `query.context_token_budget`                                                         | Odhadovaný strop kontextu; ořezává se od nejníže skórujících diskuzí (nejdřív syrové zprávy, pak celé bloky).                                      |
+| `query.min_candidate_score`                                                          | Práh skóre. Když po fúzi nic neprojde, endpoint vrátí `confidence: "low"` bez volání LLM syntézy.                                                  |
+| `query.recency_half_life_days`                                                       | Po kolika dnech klesne recency bonus na polovinu.                                                                                                  |
+| `query.weight_vector` / `weight_anchor` / `weight_expansion` / `weight_recency`      | Váhy složek finálního skóre kandidáta.                                                                                                             |
+| `query.weight_type_preference`                                                       | Měkký bonus, když typ diskuze sedí na `preferred_discussion_types` z plánovače. Nefiltruje — jen řadí.                                             |
+| `query.opinion_sentiment_diversity`                                                  | U názorových otázek držet v evidence setu i menšinový sentiment (pozitivní/negativní).                                                             |
+| `query.vocab_sample_size`                                                            | Kolik nejčastějších názvů `Topic`/`Entity` se dá plánovači jako slovník grafu.                                                                     |
 
 ## Webové rozhraní
 
@@ -193,15 +193,15 @@ shadcn-svelte@latest init` + `add` je lze nahradit z registru beze změny cest i
 
 ## Datový model (SQLite, `src/db/sqlite/schema.ts`)
 
-| Tabulka | Obsah |
-|---|---|
-| `guilds`, `channels`, `users` | základní entity z Discordu |
-| `messages` | syrové zprávy; `processed` (`0` raw → `1` clustered → `3` v grafu), `discussion_id` |
-| `ingestion_batches` | evidence `POST /batches` volání (vložené / duplicitní počty) |
-| `discussions_local` | clustery z kroku 1 (staging); `parent_discussion_id` u dětských diskuzí ze split |
-| `discussion_enrichment` | výstup kroku 2: `title`, `summary`, `topics`, `entities`, `key_points`, `sentiment` (+ skóre), `language`, `discussion_type`, `resolved`, embedding pro krok 3, `raw_llm_response` |
-| `channel_checkpoints` | informativní: kam clusterizace v kanálu chronologicky došla |
-| `jobs` | stav asynchronních běhů (`cluster` \| `enrich` \| `graph_write`) |
+| Tabulka                       | Obsah                                                                                                                                                                              |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `guilds`, `channels`, `users` | základní entity z Discordu                                                                                                                                                         |
+| `messages`                    | syrové zprávy; `processed` (`0` raw → `1` clustered → `3` v grafu), `discussion_id`                                                                                                |
+| `ingestion_batches`           | evidence `POST /batches` volání (vložené / duplicitní počty)                                                                                                                       |
+| `discussions_local`           | clustery z kroku 1 (staging); `parent_discussion_id` u dětských diskuzí ze split                                                                                                   |
+| `discussion_enrichment`       | výstup kroku 2: `title`, `summary`, `topics`, `entities`, `key_points`, `sentiment` (+ skóre), `language`, `discussion_type`, `resolved`, embedding pro krok 3, `raw_llm_response` |
+| `channel_checkpoints`         | informativní: kam clusterizace v kanálu chronologicky došla                                                                                                                        |
+| `jobs`                        | stav asynchronních běhů (`cluster` \| `enrich` \| `graph_write`)                                                                                                                   |
 
 ### Životní cyklus diskuze (`discussions_local.status`)
 
@@ -267,28 +267,28 @@ po zápisu označí `written` a příště přeskočí — přispěje do nich pr
 
 ### Uzly
 
-| Label | Klíč | Vlastnosti |
-|---|---|---|
-| `User` | `id` | `username`, `display_name`, `first_seen_at`, `last_seen_at`, `message_count` |
-| `Channel` | `id` | `name`, `guild_id` |
-| `Guild` | `id` | `name` — server; vzniká při `graph-write`, když má kanál `guild_id` (Část 4.1) |
-| `Discussion` | `id` | `channel_id`, `started_at`, `ended_at`, `message_count`, `participant_count`, `title`, `summary`, `topics[]`, `sentiment` (+ `_score`), `language`, `discussion_type`, `resolved`, `embedding` (index `discussion_embedding_idx`) |
-| `Topic` | `name` (kanonizované: trim, sražené mezery, dedup case-insensitive) | `discussion_count`, `created_at` |
-| `Entity` | `key` = `typ:název` | `name`, `type` (`person`/`product`/`technology`/`organization`/`place`/`event`/`other`), `mention_count`, `created_at` |
+| Label        | Klíč                                                                | Vlastnosti                                                                                                                                                                                                                        |
+| ------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User`       | `id`                                                                | `username`, `display_name`, `first_seen_at`, `last_seen_at`, `message_count`                                                                                                                                                      |
+| `Channel`    | `id`                                                                | `name`, `guild_id`                                                                                                                                                                                                                |
+| `Guild`      | `id`                                                                | `name` — server; vzniká při `graph-write`, když má kanál `guild_id` (Část 4.1)                                                                                                                                                    |
+| `Discussion` | `id`                                                                | `channel_id`, `started_at`, `ended_at`, `message_count`, `participant_count`, `title`, `summary`, `topics[]`, `sentiment` (+ `_score`), `language`, `discussion_type`, `resolved`, `embedding` (index `discussion_embedding_idx`) |
+| `Topic`      | `name` (kanonizované: trim, sražené mezery, dedup case-insensitive) | `discussion_count`, `created_at`                                                                                                                                                                                                  |
+| `Entity`     | `key` = `typ:název`                                                 | `name`, `type` (`person`/`product`/`technology`/`organization`/`place`/`event`/`other`), `mention_count`, `created_at`                                                                                                            |
 
 ### Hrany
 
-| Hrana | Vlastnosti | Poznámka |
-|---|---|---|
-| `(User)-[:PARTICIPATED_IN]->(Discussion)` | `message_count`, `first_message_at`, `last_message_at` | agregace nad `messages` diskuze |
-| `(Discussion)-[:OCCURRED_IN]->(Channel)` | — | |
-| `(Channel)-[:IN_GUILD]->(Guild)` | — | jen když má kanál `guild_id` |
-| `(Discussion)-[:DISCUSSES]->(Topic)` | — | |
-| `(Discussion)-[:MENTIONS]->(Entity)` | `count` | |
-| `(Topic)-[:COOCCURS_WITH]->(Topic)` | `count`, `last_seen_at` | v abecedním pořadí názvů (bez opačné duplicity); přeskočí se u diskuze s > 12 topiců |
-| `(Entity)-[:COOCCURS_WITH]->(Entity)` | `count`, `last_seen_at` | totéž podle `key` |
-| `(User)-[:INTERESTED_IN]->(Topic)` | `weight`, `discussion_count`, `last_interaction_at` | pro každého účastníka × topic; `weight +=` počet jeho zpráv v diskuzi |
-| `(Discussion)-[:CONTINUATION_OF]->(Discussion)` | `reason`, `similarity_score`, `created_at` | novější → starší; zatím jen `reason = 'explicit_reply'` z clusteringu |
+| Hrana                                           | Vlastnosti                                             | Poznámka                                                                             |
+| ----------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `(User)-[:PARTICIPATED_IN]->(Discussion)`       | `message_count`, `first_message_at`, `last_message_at` | agregace nad `messages` diskuze                                                      |
+| `(Discussion)-[:OCCURRED_IN]->(Channel)`        | —                                                      |                                                                                      |
+| `(Channel)-[:IN_GUILD]->(Guild)`                | —                                                      | jen když má kanál `guild_id`                                                         |
+| `(Discussion)-[:DISCUSSES]->(Topic)`            | —                                                      |                                                                                      |
+| `(Discussion)-[:MENTIONS]->(Entity)`            | `count`                                                |                                                                                      |
+| `(Topic)-[:COOCCURS_WITH]->(Topic)`             | `count`, `last_seen_at`                                | v abecedním pořadí názvů (bez opačné duplicity); přeskočí se u diskuze s > 12 topiců |
+| `(Entity)-[:COOCCURS_WITH]->(Entity)`           | `count`, `last_seen_at`                                | totéž podle `key`                                                                    |
+| `(User)-[:INTERESTED_IN]->(Topic)`              | `weight`, `discussion_count`, `last_interaction_at`    | pro každého účastníka × topic; `weight +=` počet jeho zpráv v diskuzi                |
+| `(Discussion)-[:CONTINUATION_OF]->(Discussion)` | `reason`, `similarity_score`, `created_at`             | novější → starší; zatím jen `reason = 'explicit_reply'` z clusteringu                |
 
 **Zjednodušené oproti PLAN.md:** kanonizace topiců/entit je jen přesná shoda po normalizaci
 (žádné slučování přes embedding index), `Topic`/`Entity` nedostávají `embedding`/`category`.
@@ -299,32 +299,32 @@ Posun `channel_checkpoints` a sémantické `CONTINUATION_OF` patří k dalšímu
 Všechny `/api/v1/*` endpointy vyžadují hlavičku `X-API-Key` (hodnota z `.env` → `API_KEY`);
 jinak `401`. Platná cesta s nepodporovanou metodou → `405 method_not_allowed`.
 
-| Endpoint | Co dělá |
-|---|---|
-| `POST /api/v1/batches` | Uloží dávku zpráv do SQLite (dedup podle `id`). **Jen ID** — názvová pole → `400`. Nic dalšího nespouští. `202` |
-| `POST /api/v1/dictionary` | **Část 4.1 — slovník jmen.** Přírůstkový upsert názvů guildy/kanálů/uživatelů do SQLite + propagace do Neo4j. `400` u prázdného těla / neznámých klíčů / přes limit. |
-| `POST /api/v1/dictionary/graph-resync` | Znovu nasype všechny ne-`null` názvy ze SQLite do existujících Neo4j uzlů (job `name_sync`). `202` s `job_id`, `503` bez Neo4j. |
-| `POST /api/v1/pipeline` | **Část 4.2 — sjednocený běh.** Dávka (tvarově jako `/batches`) + `options?` → synchronní ingest + jeden job `pipeline` (clusterize → enrich → graph-write). `202` s `batch_id` i `job_id`. |
-| `POST /api/v1/channels/:id/pipeline` | Totéž bez dávky — pipeline nad už naingestovanými `processed=0` zprávami kanálu. `202` s `job_id`. |
-| `POST /api/v1/channels/:id/clusterize` | Spustí krok 1 na pozadí. `202` s `job_id` |
-| `POST /api/v1/channels/:id/enrich` | Spustí krok 2. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id` |
-| `POST /api/v1/channels/:id/graph-write` | Spustí krok 3. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id` |
-| `GET /api/v1/jobs/:id` | Stav a `result` jednoho jobu |
-| `GET /api/v1/jobs?status=&channel_id=&type=` | Seznam jobů, volitelně filtrovaný |
-| — | **Obnova po restartu:** joby ve stavu `pending`/`running` se při startu appky znovu spustí (stage jsou idempotentní, běží jen nad ještě nezpracovanými řádky). Vstupy, které nejsou v řádku jobu (options, `name_sync` payload), drží sloupec `jobs.params`. `name_sync` bez uloženého payloadu → `failed` s odkazem na `graph-resync`. |
-| `GET /api/v1/channels/:id/discussions?status=` | Debug: diskuze kanálu vč. zpráv a `enrichment` bloku |
-| `GET /api/v1/discussions/:id/enrichment` | Co AI k diskuzi vygenerovala; `404 not_found_or_not_enriched` |
-| `DELETE /api/v1/channels/:id/messages` | Debug reset: smaže zprávy, staged diskuze, enrichment i checkpoint kanálu (historii jobů nechá) |
-| `GET /health` | Bez autentizace. `503` jen když selže SQLite; Neo4j je informativní |
-| `GET /api/v1/stream` | WebSocket, forwarduje bus události (`job.*`, `llm.call`, `ingest.batch`, `stats.tick`, `dictionary.synced`). Klíč jako `?token=<API_KEY>` (WS hlavičky z prohlížeče nejdou). |
-| `GET /api/v1/stats` | Agregáty pro dashboard: `funnel`, `totals`, zprávy/kanál, histogram velikostí clusterů, sentiment/`discussion_type`, top témata/entity, LLM `avg`/`p50`/`p95` + per model + časová řada. Čistě SQLite. |
-| `GET /api/v1/ai/calls?limit=&status=&model=&job_id=&channel_id=&cursor=` | Stránkovaný výpis `llm_calls`, newest-first (keyset kurzor). |
-| `GET /api/v1/graph/overview?channel_id=&limit=` | Navzorkovaný podgraf pro první vykreslení. `503 neo4j_not_configured` bez Neo4j. |
-| `GET /api/v1/graph/node/:id/neighbors?limit=` | Sousedé uzlu (expand-on-click). `id` je Neo4j `elementId`. |
-| `GET /api/v1/graph/search?q=` | Fulltext přes `Topic.name` / `Entity.name` / `Discussion.title` / `User.username`. |
-| `POST /api/v1/query` | **Část 3 — dotazování.** NL otázka → odpověď syntetizovaná z grafu + citace. Synchronní. `503 graph_unavailable` bez Neo4j, `422` u prázdné otázky. |
-| `GET /api/v1/discussions/:id` | **Část 4.3.** Bundle pro drawer: `discussions_local` řádek + `enrichment` + zprávy. Jen s `[web] enabled`. |
-| `GET /api/v1/graph/node/by-domain-id?label=&id=` | **Část 4.3.** Doménové ID → Neo4j `elementId` pro deep-link z citace do grafu. Jen s `[web] enabled`. |
+| Endpoint                                                                 | Co dělá                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/batches`                                                   | Uloží dávku zpráv do SQLite (dedup podle `id`). **Jen ID** — názvová pole → `400`. Nic dalšího nespouští. `202`                                                                                                                                                                                                                         |
+| `POST /api/v1/dictionary`                                                | **Část 4.1 — slovník jmen.** Přírůstkový upsert názvů guildy/kanálů/uživatelů do SQLite + propagace do Neo4j. `400` u prázdného těla / neznámých klíčů / přes limit.                                                                                                                                                                    |
+| `POST /api/v1/dictionary/graph-resync`                                   | Znovu nasype všechny ne-`null` názvy ze SQLite do existujících Neo4j uzlů (job `name_sync`). `202` s `job_id`, `503` bez Neo4j.                                                                                                                                                                                                         |
+| `POST /api/v1/pipeline`                                                  | **Část 4.2 — sjednocený běh.** Dávka (tvarově jako `/batches`) + `options?` → synchronní ingest + jeden job `pipeline` (clusterize → enrich → graph-write). `202` s `batch_id` i `job_id`.                                                                                                                                              |
+| `POST /api/v1/channels/:id/pipeline`                                     | Totéž bez dávky — pipeline nad už naingestovanými `processed=0` zprávami kanálu. `202` s `job_id`.                                                                                                                                                                                                                                      |
+| `POST /api/v1/channels/:id/clusterize`                                   | Spustí krok 1 na pozadí. `202` s `job_id`                                                                                                                                                                                                                                                                                               |
+| `POST /api/v1/channels/:id/enrich`                                       | Spustí krok 2. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id`                                                                                                                                                                                                                                                              |
+| `POST /api/v1/channels/:id/graph-write`                                  | Spustí krok 3. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id`                                                                                                                                                                                                                                                              |
+| `GET /api/v1/jobs/:id`                                                   | Stav a `result` jednoho jobu                                                                                                                                                                                                                                                                                                            |
+| `GET /api/v1/jobs?status=&channel_id=&type=`                             | Seznam jobů, volitelně filtrovaný                                                                                                                                                                                                                                                                                                       |
+| —                                                                        | **Obnova po restartu:** joby ve stavu `pending`/`running` se při startu appky znovu spustí (stage jsou idempotentní, běží jen nad ještě nezpracovanými řádky). Vstupy, které nejsou v řádku jobu (options, `name_sync` payload), drží sloupec `jobs.params`. `name_sync` bez uloženého payloadu → `failed` s odkazem na `graph-resync`. |
+| `GET /api/v1/channels/:id/discussions?status=`                           | Debug: diskuze kanálu vč. zpráv a `enrichment` bloku                                                                                                                                                                                                                                                                                    |
+| `GET /api/v1/discussions/:id/enrichment`                                 | Co AI k diskuzi vygenerovala; `404 not_found_or_not_enriched`                                                                                                                                                                                                                                                                           |
+| `DELETE /api/v1/channels/:id/messages`                                   | Debug reset: smaže zprávy, staged diskuze, enrichment i checkpoint kanálu (historii jobů nechá)                                                                                                                                                                                                                                         |
+| `GET /health`                                                            | Bez autentizace. `503` jen když selže SQLite; Neo4j je informativní                                                                                                                                                                                                                                                                     |
+| `GET /api/v1/stream`                                                     | WebSocket, forwarduje bus události (`job.*`, `llm.call`, `ingest.batch`, `stats.tick`, `dictionary.synced`). Klíč jako `?token=<API_KEY>` (WS hlavičky z prohlížeče nejdou).                                                                                                                                                            |
+| `GET /api/v1/stats`                                                      | Agregáty pro dashboard: `funnel`, `totals`, zprávy/kanál, histogram velikostí clusterů, sentiment/`discussion_type`, top témata/entity, LLM `avg`/`p50`/`p95` + per model + časová řada. Čistě SQLite.                                                                                                                                  |
+| `GET /api/v1/ai/calls?limit=&status=&model=&job_id=&channel_id=&cursor=` | Stránkovaný výpis `llm_calls`, newest-first (keyset kurzor).                                                                                                                                                                                                                                                                            |
+| `GET /api/v1/graph/overview?channel_id=&limit=`                          | Navzorkovaný podgraf pro první vykreslení. `503 neo4j_not_configured` bez Neo4j.                                                                                                                                                                                                                                                        |
+| `GET /api/v1/graph/node/:id/neighbors?limit=`                            | Sousedé uzlu (expand-on-click). `id` je Neo4j `elementId`.                                                                                                                                                                                                                                                                              |
+| `GET /api/v1/graph/search?q=`                                            | Fulltext přes `Topic.name` / `Entity.name` / `Discussion.title` / `User.username`.                                                                                                                                                                                                                                                      |
+| `POST /api/v1/query`                                                     | **Část 3 — dotazování.** NL otázka → odpověď syntetizovaná z grafu + citace. Synchronní. `503 graph_unavailable` bez Neo4j, `422` u prázdné otázky.                                                                                                                                                                                     |
+| `GET /api/v1/discussions/:id`                                            | **Část 4.3.** Bundle pro drawer: `discussions_local` řádek + `enrichment` + zprávy. Jen s `[web] enabled`.                                                                                                                                                                                                                              |
+| `GET /api/v1/graph/node/by-domain-id?label=&id=`                         | **Část 4.3.** Doménové ID → Neo4j `elementId` pro deep-link z citace do grafu. Jen s `[web] enabled`.                                                                                                                                                                                                                                   |
 
 Endpointy `stream` / `stats` / `ai/calls` / `graph/*` / `discussions/:id` / `graph/node/by-domain-id`
 existují jen když `config.toml` má `[web] enabled = true`.
@@ -416,7 +416,7 @@ curl -X POST http://localhost:3004/api/v1/pipeline \
 
 - **Ingest je synchronní** (fail-fast na špatné tělo, hned `inserted` / `duplicate` počty),
   zbytek je jeden job `type: "pipeline"`, který sekvenčně spustí `clusterize → enrich →
-  graph-write`. Sleduje se přes `GET /api/v1/jobs/:id` jako každý jiný job.
+graph-write`. Sleduje se přes `GET /api/v1/jobs/:id` jako každý jiný job.
 - `result` má bloky `ingest` / `cluster` / `enrich` / `graphWrite`, plněné průběžně po každé
   stage (`progress` jde 0→3, resp. 0→2 při `skip_graph_write`).
 - **Spadne-li stage**, job je `failed` a `error` je `"<stage>: <zpráva>"` (např. `"enrich: …"`);
@@ -479,11 +479,19 @@ curl -X POST http://localhost:3004/api/v1/query \
 ```jsonc
 {
   "answer": "Lidé jsou na Smarty spíš negativní kvůli cenám [D1][D3]. ...",
-  "confidence": "high",              // high | medium | low
+  "confidence": "high", // high | medium | low
   "citations": [
-    { "ref": "D1", "discussion_id": "…", "title": "…", "channel": "hardware",
-      "discussion_type": "discussion", "sentiment": "negative", "started_at": "…",
-      "score": 0.83, "used": true }
+    {
+      "ref": "D1",
+      "discussion_id": "…",
+      "title": "…",
+      "channel": "hardware",
+      "discussion_type": "discussion",
+      "sentiment": "negative",
+      "started_at": "…",
+      "score": 0.83,
+      "used": true
+    }
   ],
   "used_discussion_count": 2,
   "intent": "opinion",

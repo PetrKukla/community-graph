@@ -3,8 +3,13 @@
  * Kept in sync by hand - the backend is the source of truth.
  */
 
-export type JobType = "cluster" | "enrich" | "graph_write" | "name_sync" | "pipeline";
-export type JobStatus = "pending" | "running" | "completed" | "failed";
+export type JobType =
+  | 'cluster'
+  | 'enrich'
+  | 'graph_write'
+  | 'name_sync'
+  | 'pipeline';
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export interface JobSummary {
   id: string;
@@ -23,7 +28,7 @@ export interface JobDetail extends JobSummary {
   finished_at?: string;
 }
 
-export type LlmCallStatus = "ok" | "error";
+export type LlmCallStatus = 'ok' | 'error';
 
 export interface LlmCall {
   id: string;
@@ -81,7 +86,11 @@ export interface LlmStats {
 export interface Stats {
   totals: StatsTotals;
   funnel: PipelineFunnel;
-  messages_per_channel: { channel_id: string; name: string | null; count: number }[];
+  messages_per_channel: {
+    channel_id: string;
+    name: string | null;
+    count: number;
+  }[];
   clusters_per_channel: {
     channel_id: string;
     name: string | null;
@@ -100,7 +109,7 @@ export interface Stats {
 
 // --- Část 4.3: dotazování na webu (POST /api/v1/query + citation drawer) ------
 
-export type QueryConfidence = "high" | "medium" | "low";
+export type QueryConfidence = 'high' | 'medium' | 'low';
 
 export interface QueryCitation {
   ref: string;
@@ -155,7 +164,13 @@ export interface DiscussionBundle {
   continuation_of_discussion_id: string | null;
   continuation_reason: string | null;
   enrichment: DiscussionEnrichmentView | null;
-  messages: { id: string; author_id: string; author_label: string; content: string; created_at: string }[];
+  messages: {
+    id: string;
+    author_id: string;
+    author_label: string;
+    content: string;
+    created_at: string;
+  }[];
 }
 
 // --- graph view --------------------------------------------------------------
@@ -223,12 +238,12 @@ export interface DictionarySyncedEvent {
 }
 
 export interface BusEventMap {
-  "job.created": JobCreatedEvent;
-  "job.updated": JobUpdatedEvent;
-  "llm.call": LlmCallEvent;
-  "ingest.batch": IngestBatchEvent;
-  "stats.tick": StatsTickEvent;
-  "dictionary.synced": DictionarySyncedEvent;
+  'job.created': JobCreatedEvent;
+  'job.updated': JobUpdatedEvent;
+  'llm.call': LlmCallEvent;
+  'ingest.batch': IngestBatchEvent;
+  'stats.tick': StatsTickEvent;
+  'dictionary.synced': DictionarySyncedEvent;
 }
 
 export type BusEventName = keyof BusEventMap;

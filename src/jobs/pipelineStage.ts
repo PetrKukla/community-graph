@@ -1,9 +1,9 @@
-import type { IngestResult } from "../db/sqlite/repositories/ingestRepository";
-import type { ClusterChannelResult } from "./clusterStage";
-import type { EnrichChannelResult } from "./enrichStage";
-import type { GraphWriteChannelResult } from "./graphWriteStage";
+import type { IngestResult } from '../db/sqlite/repositories/ingestRepository';
+import type { ClusterChannelResult } from './clusterStage';
+import type { EnrichChannelResult } from './enrichStage';
+import type { GraphWriteChannelResult } from './graphWriteStage';
 
-export type PipelineStageName = "cluster" | "enrich" | "graph_write";
+export type PipelineStageName = 'cluster' | 'enrich' | 'graph_write';
 
 export interface PipelineChannelOptions {
   maxMessages?: number;
@@ -21,9 +21,18 @@ export interface PipelineResult {
 
 /** The three graph-side stages, already bound to their providers by the caller. */
 export interface PipelineStages {
-  cluster: (channelId: string, opts: { maxMessages?: number }) => Promise<ClusterChannelResult>;
-  enrich: (channelId: string, opts: { maxDiscussions?: number }) => Promise<EnrichChannelResult>;
-  graphWrite: (channelId: string, opts: { maxDiscussions?: number }) => Promise<GraphWriteChannelResult>;
+  cluster: (
+    channelId: string,
+    opts: { maxMessages?: number }
+  ) => Promise<ClusterChannelResult>;
+  enrich: (
+    channelId: string,
+    opts: { maxDiscussions?: number }
+  ) => Promise<EnrichChannelResult>;
+  graphWrite: (
+    channelId: string,
+    opts: { maxDiscussions?: number }
+  ) => Promise<GraphWriteChannelResult>;
 }
 
 export interface PipelineHooks {
@@ -35,10 +44,12 @@ export interface PipelineHooks {
 export class PipelineStageError extends Error {
   constructor(
     readonly stage: PipelineStageName,
-    readonly reason: unknown,
+    readonly reason: unknown
   ) {
-    super(`${stage}: ${reason instanceof Error ? reason.message : String(reason)}`);
-    this.name = "PipelineStageError";
+    super(
+      `${stage}: ${reason instanceof Error ? reason.message : String(reason)}`
+    );
+    this.name = 'PipelineStageError';
   }
 }
 
@@ -52,11 +63,15 @@ export async function executePipeline(
   stages: PipelineStages,
   options: PipelineChannelOptions,
   seed: PipelineResult = {},
-  hooks: PipelineHooks = {},
+  hooks: PipelineHooks = {}
 ): Promise<PipelineResult> {
   const result: PipelineResult = { ...seed };
 
-  async function step(stage: PipelineStageName, key: keyof PipelineResult, run: () => Promise<unknown>): Promise<void> {
+  async function step(
+    stage: PipelineStageName,
+    key: keyof PipelineResult,
+    run: () => Promise<unknown>
+  ): Promise<void> {
     try {
       Object.assign(result, { [key]: await run() });
     } catch (err) {
@@ -65,11 +80,15 @@ export async function executePipeline(
     hooks.onStageComplete?.(stage, { ...result });
   }
 
-  await step("cluster", "cluster", () => stages.cluster(channelId, { maxMessages: options.maxMessages }));
-  await step("enrich", "enrich", () => stages.enrich(channelId, { maxDiscussions: options.maxDiscussions }));
+  await step('cluster', 'cluster', () =>
+    stages.cluster(channelId, { maxMessages: options.maxMessages })
+  );
+  await step('enrich', 'enrich', () =>
+    stages.enrich(channelId, { maxDiscussions: options.maxDiscussions })
+  );
   if (!options.skipGraphWrite) {
-    await step("graph_write", "graphWrite", () =>
-      stages.graphWrite(channelId, { maxDiscussions: options.maxDiscussions }),
+    await step('graph_write', 'graphWrite', () =>
+      stages.graphWrite(channelId, { maxDiscussions: options.maxDiscussions })
     );
   }
 

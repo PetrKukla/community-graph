@@ -1,4 +1,4 @@
-import type { LlmCall, PipelineFunnel, StatsTotals } from "../../types";
+import type { LlmCall, PipelineFunnel, StatsTotals } from '../../types';
 
 /** Latest cheap aggregate pushed by `stats.tick` - lets Overview update every couple of seconds. */
 class LiveTick {

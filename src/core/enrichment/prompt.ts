@@ -1,4 +1,4 @@
-import type { EnrichableMessage } from "./types";
+import type { EnrichableMessage } from './types';
 
 export const ENRICHMENT_SYSTEM_PROMPT = `Jsi analytik komunitních diskuzí. Dostaneš shluk zpráv z jednoho Discord kanálu, který
 předběžný clustering seskupil dohromady. Tvým úkolem je vytěžit z něj co nejvíc znalostí pro
@@ -27,14 +27,19 @@ Shrnutí i názvy témat musí být v češtině, pokud se nejedná o název, kt
 `;
 
 /** Renders the discussion's messages into the user turn. */
-export function buildEnrichmentUserPrompt(messages: EnrichableMessage[], maxMessages: number): string {
-  const capped = messages.length > maxMessages ? messages.slice(0, maxMessages) : messages;
+export function buildEnrichmentUserPrompt(
+  messages: EnrichableMessage[],
+  maxMessages: number
+): string {
+  const capped =
+    messages.length > maxMessages ? messages.slice(0, maxMessages) : messages;
   const lines = capped.map(
-    (m) => `[id=${m.id}] ${m.authorLabel} @ ${m.createdAt}\n${m.content.replace(/\r?\n/g, " ").trim()}`,
+    (m) =>
+      `[id=${m.id}] ${m.authorLabel} @ ${m.createdAt}\n${m.content.replace(/\r?\n/g, ' ').trim()}`
   );
   const header =
     capped.length < messages.length
       ? `Diskuze má ${messages.length} zpráv, níže je prvních ${capped.length}.\n\n`
-      : "";
-  return `${header}${lines.join("\n\n")}`;
+      : '';
+  return `${header}${lines.join('\n\n')}`;
 }

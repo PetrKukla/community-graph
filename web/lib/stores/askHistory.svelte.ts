@@ -1,6 +1,6 @@
-import type { QueryAnswer, QueryFilters } from "../../types";
+import type { QueryAnswer, QueryFilters } from '../../types';
 
-const STORAGE_KEY = "cg.ask.history";
+const STORAGE_KEY = 'cg.ask.history';
 const MAX_ITEMS = 25;
 
 export interface AskHistoryEntry {
@@ -34,13 +34,17 @@ function persist(items: AskHistoryEntry[]): void {
 class AskHistory {
   items = $state<AskHistoryEntry[]>(load());
 
-  add(question: string, filters: QueryFilters | undefined, answer: QueryAnswer): AskHistoryEntry {
+  add(
+    question: string,
+    filters: QueryFilters | undefined,
+    answer: QueryAnswer
+  ): AskHistoryEntry {
     const entry: AskHistoryEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       question,
       filters: filters && Object.keys(filters).length > 0 ? filters : undefined,
       answer,
-      at: Date.now(),
+      at: Date.now()
     };
     this.items = [entry, ...this.items].slice(0, MAX_ITEMS);
     persist(this.items);

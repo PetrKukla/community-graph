@@ -1,7 +1,7 @@
-import { inArray, isNotNull, or } from "drizzle-orm";
-import { db } from "../client";
-import { guilds, channels, users } from "../schema";
-import type { DictionaryNames } from "../../../core/ports/GraphStore";
+import { inArray, isNotNull, or } from 'drizzle-orm';
+import { db } from '../client';
+import { guilds, channels, users } from '../schema';
+import type { DictionaryNames } from '../../../core/ports/GraphStore';
 
 /**
  * A field is only acted on when the key is present in the request object:
@@ -55,7 +55,11 @@ export interface DictionarySyncResult {
 }
 
 /** Does the incoming row differ from what is stored, considering only the keys it carries? */
-function differs(incoming: object, existing: Record<string, unknown>, keys: string[]): boolean {
+function differs(
+  incoming: object,
+  existing: Record<string, unknown>,
+  keys: string[]
+): boolean {
   const row = incoming as Record<string, unknown>;
   for (const key of keys) {
     if (!(key in row)) continue;
@@ -64,7 +68,9 @@ function differs(incoming: object, existing: Record<string, unknown>, keys: stri
   return false;
 }
 
-export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult {
+export function syncDictionary(
+  req: DictionarySyncRequest
+): DictionarySyncResult {
   const now = new Date().toISOString();
 
   return db.transaction((tx) => {
@@ -72,23 +78,35 @@ export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult
       guild: { updated: 0 },
       channels: { received: 0, created: 0, updated: 0, unchanged: 0 },
       users: { received: 0, created: 0, updated: 0, unchanged: 0 },
-      changedIds: { guildId: null, channelIds: [], userIds: [] },
+      changedIds: { guildId: null, channelIds: [], userIds: [] }
     };
 
     // --- guild ---------------------------------------------------------------
     if (req.guild) {
-      const existing = tx.select().from(guilds).where(inArray(guilds.id, [req.guild.id])).get();
+      const existing = tx
+        .select()
+        .from(guilds)
+        .where(inArray(guilds.id, [req.guild.id]))
+        .get();
       const set: Record<string, unknown> = { namesSyncedAt: now };
-      if ("name" in req.guild) set.name = req.guild.name ?? null;
+      if ('name' in req.guild) set.name = req.guild.name ?? null;
 
       if (!existing) {
         tx.insert(guilds)
-          .values({ id: req.guild.id, name: req.guild.name ?? null, createdAt: now, namesSyncedAt: now })
+          .values({
+            id: req.guild.id,
+            name: req.guild.name ?? null,
+            createdAt: now,
+            namesSyncedAt: now
+          })
           .run();
         result.guild.updated = 1;
         result.changedIds.guildId = req.guild.id;
-      } else if (differs(req.guild, existing, ["name"])) {
-        tx.update(guilds).set(set).where(inArray(guilds.id, [req.guild.id])).run();
+      } else if (differs(req.guild, existing, ['name'])) {
+        tx.update(guilds)
+          .set(set)
+          .where(inArray(guilds.id, [req.guild.id]))
+          .run();
         result.guild.updated = 1;
         result.changedIds.guildId = req.guild.id;
       }
@@ -98,12 +116,16 @@ export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult
     if (req.channels && req.channels.length > 0) {
       result.channels.received = req.channels.length;
       const ids = req.channels.map((c) => c.id);
-      const existingRows = tx.select().from(channels).where(inArray(channels.id, ids)).all();
+      const existingRows = tx
+        .select()
+        .from(channels)
+        .where(inArray(channels.id, ids))
+        .all();
       const existingById = new Map(existingRows.map((r) => [r.id, r]));
 
       for (const ch of req.channels) {
         const existing = existingById.get(ch.id);
-        const nameChanged = "name" in ch || "type" in ch;
+        const nameChanged = 'name' in ch || 'type' in ch;
 
         if (!existing) {
           tx.insert(channels)
@@ -114,18 +136,21 @@ export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult
               type: ch.type ?? null,
               createdAt: now,
               updatedAt: now,
-              namesSyncedAt: now,
+              namesSyncedAt: now
             })
             .run();
           result.channels.created++;
           if (nameChanged) result.changedIds.channelIds.push(ch.id);
-        } else if (differs(ch, existing, ["name", "type"])) {
+        } else if (differs(ch, existing, ['name', 'type'])) {
           const set: Record<string, unknown> = { namesSyncedAt: now };
-          if ("name" in ch) set.name = ch.name ?? null;
-          if ("type" in ch) set.type = ch.type ?? null;
-          tx.update(channels).set(set).where(inArray(channels.id, [ch.id])).run();
+          if ('name' in ch) set.name = ch.name ?? null;
+          if ('type' in ch) set.type = ch.type ?? null;
+          tx.update(channels)
+            .set(set)
+            .where(inArray(channels.id, [ch.id]))
+            .run();
           result.channels.updated++;
-          if ("name" in ch) result.changedIds.channelIds.push(ch.id);
+          if ('name' in ch) result.changedIds.channelIds.push(ch.id);
         } else {
           result.channels.unchanged++;
         }
@@ -136,15 +161,19 @@ export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult
     if (req.users && req.users.length > 0) {
       result.users.received = req.users.length;
       const ids = req.users.map((u) => u.id);
-      const existingRows = tx.select().from(users).where(inArray(users.id, ids)).all();
+      const existingRows = tx
+        .select()
+        .from(users)
+        .where(inArray(users.id, ids))
+        .all();
       const existingById = new Map(existingRows.map((r) => [r.id, r]));
 
       for (const u of req.users) {
         const existing = existingById.get(u.id);
         // schema column is display_name; normalise the request key for the diff
         const normalised = {
-          ...("username" in u ? { username: u.username } : {}),
-          ...("display_name" in u ? { displayName: u.display_name } : {}),
+          ...('username' in u ? { username: u.username } : {}),
+          ...('display_name' in u ? { displayName: u.display_name } : {})
         };
 
         if (!existing) {
@@ -156,16 +185,20 @@ export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult
               firstSeenAt: null,
               lastSeenAt: null,
               messageCount: 0,
-              namesSyncedAt: now,
+              namesSyncedAt: now
             })
             .run();
           result.users.created++;
-          if ("username" in u || "display_name" in u) result.changedIds.userIds.push(u.id);
-        } else if (differs(normalised, existing, ["username", "displayName"])) {
+          if ('username' in u || 'display_name' in u)
+            result.changedIds.userIds.push(u.id);
+        } else if (differs(normalised, existing, ['username', 'displayName'])) {
           const set: Record<string, unknown> = { namesSyncedAt: now };
-          if ("username" in u) set.username = u.username ?? null;
-          if ("display_name" in u) set.displayName = u.display_name ?? null;
-          tx.update(users).set(set).where(inArray(users.id, [u.id])).run();
+          if ('username' in u) set.username = u.username ?? null;
+          if ('display_name' in u) set.displayName = u.display_name ?? null;
+          tx.update(users)
+            .set(set)
+            .where(inArray(users.id, [u.id]))
+            .run();
           result.users.updated++;
           result.changedIds.userIds.push(u.id);
         } else {
@@ -179,11 +212,17 @@ export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult
 }
 
 /** Current SQLite names for a set of changed IDs, shaped for GraphStore.syncDictionaryNames. */
-export function loadDictionaryNames(changed: DictionaryChangedIds): DictionaryNames {
+export function loadDictionaryNames(
+  changed: DictionaryChangedIds
+): DictionaryNames {
   const out: DictionaryNames = {};
 
   if (changed.guildId) {
-    const g = db.select({ name: guilds.name }).from(guilds).where(inArray(guilds.id, [changed.guildId])).get();
+    const g = db
+      .select({ name: guilds.name })
+      .from(guilds)
+      .where(inArray(guilds.id, [changed.guildId]))
+      .get();
     out.guilds = [{ id: changed.guildId, name: g?.name ?? null }];
   }
   if (changed.channelIds.length > 0) {
@@ -195,7 +234,11 @@ export function loadDictionaryNames(changed: DictionaryChangedIds): DictionaryNa
   }
   if (changed.userIds.length > 0) {
     out.users = db
-      .select({ id: users.id, username: users.username, displayName: users.displayName })
+      .select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName
+      })
       .from(users)
       .where(inArray(users.id, changed.userIds))
       .all();
@@ -206,12 +249,24 @@ export function loadDictionaryNames(changed: DictionaryChangedIds): DictionaryNa
 /** Every row in SQLite that has at least one name - the input for /dictionary/graph-resync (D4). */
 export function loadAllDictionaryNames(): DictionaryNames {
   return {
-    guilds: db.select({ id: guilds.id, name: guilds.name }).from(guilds).where(isNotNull(guilds.name)).all(),
-    channels: db.select({ id: channels.id, name: channels.name }).from(channels).where(isNotNull(channels.name)).all(),
+    guilds: db
+      .select({ id: guilds.id, name: guilds.name })
+      .from(guilds)
+      .where(isNotNull(guilds.name))
+      .all(),
+    channels: db
+      .select({ id: channels.id, name: channels.name })
+      .from(channels)
+      .where(isNotNull(channels.name))
+      .all(),
     users: db
-      .select({ id: users.id, username: users.username, displayName: users.displayName })
+      .select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName
+      })
       .from(users)
       .where(or(isNotNull(users.username), isNotNull(users.displayName)))
-      .all(),
+      .all()
   };
 }

@@ -87,12 +87,8 @@
           "name": "channels_guild_id_guilds_id_fk",
           "tableFrom": "channels",
           "tableTo": "guilds",
-          "columnsFrom": [
-            "guild_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["guild_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -166,10 +162,7 @@
       "indexes": {
         "idx_discussions_channel_block": {
           "name": "idx_discussions_channel_block",
-          "columns": [
-            "channel_id",
-            "block_end_at"
-          ],
+          "columns": ["channel_id", "block_end_at"],
           "isUnique": false
         }
       },
@@ -261,12 +254,8 @@
           "name": "ingestion_batches_channel_id_channels_id_fk",
           "tableFrom": "ingestion_batches",
           "tableTo": "channels",
-          "columnsFrom": [
-            "channel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["channel_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -369,10 +358,7 @@
       "indexes": {
         "idx_jobs_channel_type": {
           "name": "idx_jobs_channel_type",
-          "columns": [
-            "channel_id",
-            "type"
-          ],
+          "columns": ["channel_id", "type"],
           "isUnique": false
         }
       },
@@ -495,38 +481,27 @@
       "indexes": {
         "idx_messages_channel_time": {
           "name": "idx_messages_channel_time",
-          "columns": [
-            "channel_id",
-            "created_at"
-          ],
+          "columns": ["channel_id", "created_at"],
           "isUnique": false
         },
         "idx_messages_thread": {
           "name": "idx_messages_thread",
-          "columns": [
-            "thread_id"
-          ],
+          "columns": ["thread_id"],
           "isUnique": false
         },
         "idx_messages_reply_to": {
           "name": "idx_messages_reply_to",
-          "columns": [
-            "reply_to_message_id"
-          ],
+          "columns": ["reply_to_message_id"],
           "isUnique": false
         },
         "idx_messages_processed": {
           "name": "idx_messages_processed",
-          "columns": [
-            "processed"
-          ],
+          "columns": ["processed"],
           "isUnique": false
         },
         "idx_messages_discussion": {
           "name": "idx_messages_discussion",
-          "columns": [
-            "discussion_id"
-          ],
+          "columns": ["discussion_id"],
           "isUnique": false
         }
       },
@@ -535,12 +510,8 @@
           "name": "messages_batch_id_ingestion_batches_id_fk",
           "tableFrom": "messages",
           "tableTo": "ingestion_batches",
-          "columnsFrom": [
-            "batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

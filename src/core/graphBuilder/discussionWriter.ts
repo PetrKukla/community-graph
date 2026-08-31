@@ -1,4 +1,4 @@
-import type { DiscussionGraphPayload, GraphEntity, GraphPair } from "./types";
+import type { DiscussionGraphPayload, GraphEntity, GraphPair } from './types';
 
 /** Raw, SQLite-shaped input for one discussion. Produced by graphWriteRepository. */
 export interface DiscussionWriteInput {
@@ -22,7 +22,12 @@ export interface DiscussionWriteInput {
     resolved: boolean | null;
     embedding: Float32Array | null;
   };
-  channel: { id: string; name: string | null; guildId: string | null; guildName: string | null };
+  channel: {
+    id: string;
+    name: string | null;
+    guildId: string | null;
+    guildName: string | null;
+  };
   participants: {
     id: string;
     username: string | null;
@@ -40,7 +45,7 @@ export interface DiscussionWriteInput {
 const MAX_COOCCURRENCE_TERMS = 12;
 
 function normaliseLabel(raw: string): string {
-  return raw.replace(/\s+/gu, " ").trim();
+  return raw.replace(/\s+/gu, ' ').trim();
 }
 
 /** Trim/collapse, drop empties, de-dupe case-insensitively keeping the first casing seen. */
@@ -55,12 +60,14 @@ function canonicalTopics(raw: string[] | null): string[] {
   return [...seen.values()];
 }
 
-function canonicalEntities(raw: { name: string; type: string }[] | null): GraphEntity[] {
+function canonicalEntities(
+  raw: { name: string; type: string }[] | null
+): GraphEntity[] {
   const seen = new Map<string, GraphEntity>();
   for (const item of raw ?? []) {
     const name = normaliseLabel(item.name);
     if (!name) continue;
-    const type = normaliseLabel(item.type).toLowerCase() || "other";
+    const type = normaliseLabel(item.type).toLowerCase() || 'other';
     const key = `${type}:${name.toLowerCase()}`;
     if (!seen.has(key)) seen.set(key, { key, name, type });
   }
@@ -84,7 +91,10 @@ function pairsOf(sortedKeys: string[]): GraphPair[] {
  * canonical topic/entity labels, de-duped, alphabetical cooccurrence pairs, and the discussion
  * embedding only when its dimension matches the configured vector index.
  */
-export function buildDiscussionGraphPayload(input: DiscussionWriteInput, embeddingDimension: number): DiscussionGraphPayload {
+export function buildDiscussionGraphPayload(
+  input: DiscussionWriteInput,
+  embeddingDimension: number
+): DiscussionGraphPayload {
   const { discussion, enrichment, channel, participants } = input;
 
   const topics = canonicalTopics(enrichment.topics);
@@ -97,7 +107,9 @@ export function buildDiscussionGraphPayload(input: DiscussionWriteInput, embeddi
       : null;
 
   const sortedTopics = [...topics].sort((a, b) => a.localeCompare(b));
-  const sortedEntityKeys = entities.map((e) => e.key).sort((a, b) => a.localeCompare(b));
+  const sortedEntityKeys = entities
+    .map((e) => e.key)
+    .sort((a, b) => a.localeCompare(b));
 
   return {
     discussion: {
@@ -115,7 +127,7 @@ export function buildDiscussionGraphPayload(input: DiscussionWriteInput, embeddi
       language: enrichment.language,
       discussionType: enrichment.discussionType,
       resolved: enrichment.resolved,
-      embedding,
+      embedding
     },
     channel,
     participants,
@@ -126,9 +138,9 @@ export function buildDiscussionGraphPayload(input: DiscussionWriteInput, embeddi
     continuation: discussion.continuationOfDiscussionId
       ? {
           targetDiscussionId: discussion.continuationOfDiscussionId,
-          reason: discussion.continuationReason ?? "explicit_reply",
-          similarityScore: null,
+          reason: discussion.continuationReason ?? 'explicit_reply',
+          similarityScore: null
         }
-      : null,
+      : null
   };
 }

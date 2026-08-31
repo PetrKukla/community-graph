@@ -1,4 +1,8 @@
-import type { LLMProvider, LLMStructuredRequest, LLMStructuredResult } from "../../core/ports/LLMProvider";
+import type {
+  LLMProvider,
+  LLMStructuredRequest,
+  LLMStructuredResult
+} from '../../core/ports/LLMProvider';
 
 /**
  * Serialises every LLM call process-wide: at most one request is in flight at a time, the rest
@@ -17,16 +21,18 @@ export class SerializingLLMProvider implements LLMProvider {
     this.#inner = inner;
   }
 
-  generateStructured<T>(request: LLMStructuredRequest<T>): Promise<LLMStructuredResult<T>> {
+  generateStructured<T>(
+    request: LLMStructuredRequest<T>
+  ): Promise<LLMStructuredResult<T>> {
     // chain off whatever is currently running/queued; a prior call's rejection must not
     // poison the queue, so both settle paths just release the lock.
     const result = this.#tail.then(
       () => this.#inner.generateStructured(request),
-      () => this.#inner.generateStructured(request),
+      () => this.#inner.generateStructured(request)
     );
     this.#tail = result.then(
       () => undefined,
-      () => undefined,
+      () => undefined
     );
     return result;
   }

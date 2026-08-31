@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* dark mode is driven by a `.dark` class on <html> (see lib/stores/theme.svelte.ts),
    which the theme store keeps in sync with the OS preference until the user overrides it. */
@@ -103,11 +103,11 @@
   --radius-xl: calc(var(--radius) + 4px);
 
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    "Noto Sans", sans-serif;
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   --font-mono:
-    ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, Consolas,
-    monospace;
+    ui-monospace, 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code',
+    Menlo, Consolas, monospace;
 }
 
 @layer base {

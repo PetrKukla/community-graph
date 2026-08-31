@@ -1,8 +1,8 @@
 {
   "name": "community-graph",
-  "module": "src/index.ts",
-  "type": "module",
   "private": true,
+  "type": "module",
+  "module": "src/index.ts",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
@@ -12,11 +12,22 @@
     "web:build": "vite build",
     "web:check": "svelte-check --tsconfig ./web/tsconfig.json"
   },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.121.0",
+    "@google/genai": "^2.19.0",
+    "@huggingface/transformers": "^4.2.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.4",
+    "neo4j-driver": "^6.2.0",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@tabler/icons-svelte": "^3.35.0",
     "@tailwindcss/vite": "^4.1.14",
     "@tanstack/svelte-query": "^5.90.2",
-    "@tabler/icons-svelte": "^3.35.0",
     "@types/bun": "latest",
     "drizzle-kit": "^0.31.10",
     "graphology": "^0.26.0",
@@ -31,16 +42,5 @@
   },
   "peerDependencies": {
     "typescript": "^5"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.121.0",
-    "@google/genai": "^2.19.0",
-    "@huggingface/transformers": "^4.2.0",
-    "drizzle-orm": "^0.45.2",
-    "hono": "^4.13.4",
-    "neo4j-driver": "^6.2.0",
-    "oxfmt": "^0.65.0",
-    "oxlint": "^1.80.0",
-    "zod": "^4.4.3"
   }
 }

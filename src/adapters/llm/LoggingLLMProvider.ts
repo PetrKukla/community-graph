@@ -1,6 +1,10 @@
-import { randomUUID } from "node:crypto";
-import type { LLMProvider, LLMStructuredRequest, LLMStructuredResult } from "../../core/ports/LLMProvider";
-import { llmCallContext } from "./callContext";
+import { randomUUID } from 'node:crypto';
+import type {
+  LLMProvider,
+  LLMStructuredRequest,
+  LLMStructuredResult
+} from '../../core/ports/LLMProvider';
+import { llmCallContext } from './callContext';
 
 /** One finished (or failed) LLM call, handed to the optional sink for persistence + broadcast. */
 export interface LLMCallRecord {
@@ -12,7 +16,7 @@ export interface LLMCallRecord {
   jobId: string | null;
   startedAt: string; // ISO8601
   durationMs: number;
-  status: "ok" | "error";
+  status: 'ok' | 'error';
   promptTokens: number | null;
   completionTokens: number | null;
   error: string | null;
@@ -45,23 +49,34 @@ export class LoggingLLMProvider implements LLMProvider {
     this.#sink = opts.sink;
   }
 
-  async generateStructured<T>(request: LLMStructuredRequest<T>): Promise<LLMStructuredResult<T>> {
+  async generateStructured<T>(
+    request: LLMStructuredRequest<T>
+  ): Promise<LLMStructuredResult<T>> {
     const startedAt = new Date();
     const start = performance.now();
-    const ctx = request.context ? ` · ${request.context}` : "";
+    const ctx = request.context ? ` · ${request.context}` : '';
     console.log(`[llm →] ${this.#label}${ctx}`);
 
     try {
       const result = await this.#inner.generateStructured(request);
       const durationMs = Math.round(performance.now() - start);
       console.log(`[llm ←] ${this.#label}${ctx} · ${durationMs} ms`);
-      this.#emit(request, startedAt, durationMs, "ok", result.usage ?? null, null);
+      this.#emit(
+        request,
+        startedAt,
+        durationMs,
+        'ok',
+        result.usage ?? null,
+        null
+      );
       return result;
     } catch (err) {
       const durationMs = Math.round(performance.now() - start);
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`[llm ✗] ${this.#label}${ctx} · ${durationMs} ms · ${message}`);
-      this.#emit(request, startedAt, durationMs, "error", null, message);
+      console.error(
+        `[llm ✗] ${this.#label}${ctx} · ${durationMs} ms · ${message}`
+      );
+      this.#emit(request, startedAt, durationMs, 'error', null, message);
       throw err;
     }
   }
@@ -70,9 +85,12 @@ export class LoggingLLMProvider implements LLMProvider {
     request: LLMStructuredRequest<unknown>,
     startedAt: Date,
     durationMs: number,
-    status: "ok" | "error",
-    usage: { promptTokens: number | null; completionTokens: number | null } | null,
-    error: string | null,
+    status: 'ok' | 'error',
+    usage: {
+      promptTokens: number | null;
+      completionTokens: number | null;
+    } | null,
+    error: string | null
   ): void {
     if (!this.#sink) return;
     const { jobId, channelId } = llmCallContext.getStore() ?? {};
@@ -89,10 +107,12 @@ export class LoggingLLMProvider implements LLMProvider {
         status,
         promptTokens: usage?.promptTokens ?? null,
         completionTokens: usage?.completionTokens ?? null,
-        error,
+        error
       });
     } catch (sinkErr) {
-      console.error(`[llm sink] failed: ${sinkErr instanceof Error ? sinkErr.message : String(sinkErr)}`);
+      console.error(
+        `[llm sink] failed: ${sinkErr instanceof Error ? sinkErr.message : String(sinkErr)}`
+      );
     }
   }
 }

@@ -1,8 +1,12 @@
-import { randomUUID } from "node:crypto";
-import type { EmbeddingProvider } from "../ports/EmbeddingProvider";
-import type { TimeBlock } from "./timeBlockSplitter";
-import { clusterLongMessages } from "./streamingClusterer";
-import type { ClusterBlockResult, FinalizedDiscussion, MessageAssignment } from "./types";
+import { randomUUID } from 'node:crypto';
+import type { EmbeddingProvider } from '../ports/EmbeddingProvider';
+import type { TimeBlock } from './timeBlockSplitter';
+import { clusterLongMessages } from './streamingClusterer';
+import type {
+  ClusterBlockResult,
+  FinalizedDiscussion,
+  MessageAssignment
+} from './types';
 
 export interface ClusterBlockParams {
   block: TimeBlock;
@@ -20,13 +24,13 @@ export function assignThreadBlock(
   block: TimeBlock,
   channelId: string,
   threadId: string,
-  existingDiscussionId: string | null,
+  existingDiscussionId: string | null
 ): ClusterBlockResult {
   const discussionId = existingDiscussionId ?? randomUUID();
   const assignments: MessageAssignment[] = block.messages.map((m) => ({
     messageId: m.id,
     discussionId,
-    isNewDiscussion: !existingDiscussionId,
+    isNewDiscussion: !existingDiscussionId
   }));
   const discussion: FinalizedDiscussion = {
     id: discussionId,
@@ -36,37 +40,57 @@ export function assignThreadBlock(
     blockEndAt: block.endAt,
     messageCount: block.messages.length,
     centroidEmbedding: null,
-    isExtension: existingDiscussionId !== null,
+    isExtension: existingDiscussionId !== null
   };
   return { assignments, discussions: [discussion] };
 }
 
-export async function clusterBlock(params: ClusterBlockParams): Promise<ClusterBlockResult> {
-  const { block, channelId, wordLimit, similarityThreshold, activeSubclusterIdleMinutes, embeddingProvider, resolveReplyTarget } = params;
+export async function clusterBlock(
+  params: ClusterBlockParams
+): Promise<ClusterBlockResult> {
+  const {
+    block,
+    channelId,
+    wordLimit,
+    similarityThreshold,
+    activeSubclusterIdleMinutes,
+    embeddingProvider,
+    resolveReplyTarget
+  } = params;
 
   const longMessages = block.messages.filter((m) => m.wordCount >= wordLimit);
-  const { assignments: subAssignments, subClusterCount, centroids } = await clusterLongMessages(
+  const {
+    assignments: subAssignments,
+    subClusterCount,
+    centroids
+  } = await clusterLongMessages(
     longMessages,
     embeddingProvider,
     similarityThreshold,
-    activeSubclusterIdleMinutes,
+    activeSubclusterIdleMinutes
   );
 
-  const subClusterIndexByMessageId = new Map(subAssignments.map((a) => [a.messageId, a.subClusterIndex]));
+  const subClusterIndexByMessageId = new Map(
+    subAssignments.map((a) => [a.messageId, a.subClusterIndex])
+  );
   const memberCountByIndex = new Map<number, number>();
   const spanByIndex = new Map<number, { start: string; end: string }>();
   for (const msg of longMessages) {
     const idx = subClusterIndexByMessageId.get(msg.id)!;
     memberCountByIndex.set(idx, (memberCountByIndex.get(idx) ?? 0) + 1);
     const span = spanByIndex.get(idx);
-    if (!span) spanByIndex.set(idx, { start: msg.createdAt, end: msg.createdAt });
+    if (!span)
+      spanByIndex.set(idx, { start: msg.createdAt, end: msg.createdAt });
     else span.end = msg.createdAt; // messages are processed in chronological order
   }
 
   // resolve reply targets only for long messages that ended up as singleton outliers (case 3a),
   // and record continuation metadata for sub-clusters that absorbed >=2 messages replying into the same target (case 3b)
   const finalDiscussionIdByIndex = new Map<number, string>();
-  const continuationByIndex = new Map<number, { discussionId: string; reason: "explicit_reply" }>();
+  const continuationByIndex = new Map<
+    number,
+    { discussionId: string; reason: 'explicit_reply' }
+  >();
 
   for (const msg of longMessages) {
     if (!msg.replyToMessageId) continue;
@@ -77,7 +101,10 @@ export async function clusterBlock(params: ClusterBlockParams): Promise<ClusterB
     if (memberCount === 1) {
       finalDiscussionIdByIndex.set(idx, target); // case (a): lone reply, move straight into the target discussion
     } else if (!continuationByIndex.has(idx)) {
-      continuationByIndex.set(idx, { discussionId: target, reason: "explicit_reply" }); // case (b)
+      continuationByIndex.set(idx, {
+        discussionId: target,
+        reason: 'explicit_reply'
+      }); // case (b)
     }
   }
 
@@ -98,7 +125,7 @@ export async function clusterBlock(params: ClusterBlockParams): Promise<ClusterB
       centroidEmbedding: centroids[idx] ?? null,
       continuationOfDiscussionId: continuation?.discussionId,
       continuationReason: continuation?.reason,
-      isExtension: false,
+      isExtension: false
     });
   }
 
@@ -114,20 +141,37 @@ export async function clusterBlock(params: ClusterBlockParams): Promise<ClusterB
     if (isLong) {
       const idx = subClusterIndexByMessageId.get(msg.id)!;
       const discussionId = finalDiscussionIdByIndex.get(idx)!;
-      assignments.push({ messageId: msg.id, discussionId, isNewDiscussion: false });
+      assignments.push({
+        messageId: msg.id,
+        discussionId,
+        isNewDiscussion: false
+      });
       lastDiscussionId = discussionId;
       continue;
     }
 
-    const replyTarget = msg.replyToMessageId ? resolveReplyTarget(msg.replyToMessageId) : null;
+    const replyTarget = msg.replyToMessageId
+      ? resolveReplyTarget(msg.replyToMessageId)
+      : null;
     if (replyTarget) {
-      assignments.push({ messageId: msg.id, discussionId: replyTarget, isNewDiscussion: false });
+      assignments.push({
+        messageId: msg.id,
+        discussionId: replyTarget,
+        isNewDiscussion: false
+      });
       continue;
     }
 
     if (lastDiscussionId) {
-      assignments.push({ messageId: msg.id, discussionId: lastDiscussionId, isNewDiscussion: false });
-      newDiscussionMessageCount.set(lastDiscussionId, (newDiscussionMessageCount.get(lastDiscussionId) ?? 0) + 1);
+      assignments.push({
+        messageId: msg.id,
+        discussionId: lastDiscussionId,
+        isNewDiscussion: false
+      });
+      newDiscussionMessageCount.set(
+        lastDiscussionId,
+        (newDiscussionMessageCount.get(lastDiscussionId) ?? 0) + 1
+      );
       const owning = discussionById.get(lastDiscussionId);
       if (owning) owning.blockEndAt = msg.createdAt;
       continue;
@@ -135,7 +179,11 @@ export async function clusterBlock(params: ClusterBlockParams): Promise<ClusterB
 
     // first message of the block and it's short with no reply target - it starts a new, standalone discussion
     const id = randomUUID();
-    assignments.push({ messageId: msg.id, discussionId: id, isNewDiscussion: true });
+    assignments.push({
+      messageId: msg.id,
+      discussionId: id,
+      isNewDiscussion: true
+    });
     const standalone: FinalizedDiscussion = {
       id,
       channelId,
@@ -144,7 +192,7 @@ export async function clusterBlock(params: ClusterBlockParams): Promise<ClusterB
       blockEndAt: msg.createdAt,
       messageCount: 1,
       centroidEmbedding: null,
-      isExtension: false,
+      isExtension: false
     };
     discussions.push(standalone);
     discussionById.set(id, standalone);

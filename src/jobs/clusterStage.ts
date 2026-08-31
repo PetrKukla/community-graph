@@ -1,15 +1,21 @@
-import { config } from "../config/config";
-import { splitIntoTimeBlocks, type TimeBlock } from "../core/clustering/timeBlockSplitter";
-import { clusterBlock, assignThreadBlock } from "../core/clustering/clusterBlock";
-import type { ClusterableMessage } from "../core/clustering/types";
-import type { EmbeddingProvider } from "../core/ports/EmbeddingProvider";
+import { config } from '../config/config';
+import {
+  splitIntoTimeBlocks,
+  type TimeBlock
+} from '../core/clustering/timeBlockSplitter';
+import {
+  clusterBlock,
+  assignThreadBlock
+} from '../core/clustering/clusterBlock';
+import type { ClusterableMessage } from '../core/clustering/types';
+import type { EmbeddingProvider } from '../core/ports/EmbeddingProvider';
 import {
   getUnprocessedMessages,
   getMaxTimestamp,
   resolveReplyTargetDiscussion,
   findThreadDiscussion,
-  persistClusterResults,
-} from "../db/sqlite/repositories/discussionRepository";
+  persistClusterResults
+} from '../db/sqlite/repositories/discussionRepository';
 
 export interface ClusterChannelResult {
   processedMessageCount: number;
@@ -26,12 +32,18 @@ export interface ClusterChannelOptions {
 export async function clusterChannel(
   channelId: string,
   embeddingProvider: EmbeddingProvider,
-  options: ClusterChannelOptions = {},
+  options: ClusterChannelOptions = {}
 ): Promise<ClusterChannelResult> {
   let unprocessed = getUnprocessedMessages(channelId);
-  if (options.maxMessages !== undefined) unprocessed = unprocessed.slice(0, options.maxMessages);
+  if (options.maxMessages !== undefined)
+    unprocessed = unprocessed.slice(0, options.maxMessages);
   if (unprocessed.length === 0) {
-    return { processedMessageCount: 0, newDiscussionCount: 0, extendedDiscussionCount: 0, skippedOpenBlockMessageCount: 0 };
+    return {
+      processedMessageCount: 0,
+      newDiscussionCount: 0,
+      extendedDiscussionCount: 0,
+      skippedOpenBlockMessageCount: 0
+    };
   }
 
   const maxTimestamp = getMaxTimestamp(channelId)!;
@@ -48,12 +60,21 @@ export async function clusterChannel(
     }
   }
 
-  const totals: ClusterChannelResult = { processedMessageCount: 0, newDiscussionCount: 0, extendedDiscussionCount: 0, skippedOpenBlockMessageCount: 0 };
+  const totals: ClusterChannelResult = {
+    processedMessageCount: 0,
+    newDiscussionCount: 0,
+    extendedDiscussionCount: 0,
+    skippedOpenBlockMessageCount: 0
+  };
 
   // blocks are persisted one at a time, in chronological order, so that a reply within a *later*
   // block can resolve against a discussion finalized by an *earlier* block in this same run
   // (a Discord reply always points backwards in time, never forwards).
-  const blocks = splitIntoTimeBlocks(mainStream, config.clustering.silence_gap_minutes, maxTimestamp);
+  const blocks = splitIntoTimeBlocks(
+    mainStream,
+    config.clustering.silence_gap_minutes,
+    maxTimestamp
+  );
   for (const block of blocks) {
     if (!block.closed) {
       totals.skippedOpenBlockMessageCount += block.messages.length;
@@ -64,9 +85,10 @@ export async function clusterChannel(
       channelId,
       wordLimit: config.clustering.short_message_word_limit,
       similarityThreshold: config.clustering.similarity_threshold,
-      activeSubclusterIdleMinutes: config.clustering.active_subcluster_idle_minutes,
+      activeSubclusterIdleMinutes:
+        config.clustering.active_subcluster_idle_minutes,
       embeddingProvider,
-      resolveReplyTarget: resolveReplyTargetDiscussion,
+      resolveReplyTarget: resolveReplyTargetDiscussion
     });
     const summary = persistClusterResults(channelId, [result], block.endAt);
     totals.processedMessageCount += summary.processedMessageCount;
@@ -80,10 +102,15 @@ export async function clusterChannel(
       messages: threadMessages,
       startAt: threadMessages[0]!.createdAt,
       endAt: threadMessages[threadMessages.length - 1]!.createdAt,
-      closed: true,
+      closed: true
     };
     const existingDiscussionId = findThreadDiscussion(threadId);
-    const result = assignThreadBlock(block, channelId, threadId, existingDiscussionId);
+    const result = assignThreadBlock(
+      block,
+      channelId,
+      threadId,
+      existingDiscussionId
+    );
     const summary = persistClusterResults(channelId, [result], null);
     totals.processedMessageCount += summary.processedMessageCount;
     totals.newDiscussionCount += summary.newDiscussionCount;

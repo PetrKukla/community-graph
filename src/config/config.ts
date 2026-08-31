@@ -1,10 +1,10 @@
-import { z } from "zod";
-import toml from "../../config.toml";
+import { z } from 'zod';
+import toml from '../../config.toml';
 
 const configSchema = z.object({
   server: z.object({
     port: z.number().int().positive(),
-    host: z.string().min(1).default("0.0.0.0"),
+    host: z.string().min(1).default('0.0.0.0')
   }),
   clustering: z.object({
     silence_gap_minutes: z.number().positive(),
@@ -12,19 +12,19 @@ const configSchema = z.object({
     similarity_threshold: z.number().min(0).max(1),
     continuation_similarity_threshold: z.number().min(0).max(1),
     continuation_lookback_days: z.number().positive(),
-    active_subcluster_idle_minutes: z.number().positive(),
+    active_subcluster_idle_minutes: z.number().positive()
   }),
   embedding: z.object({
     model: z.string().min(1),
-    dimensions: z.number().int().positive(),
+    dimensions: z.number().int().positive()
   }),
   llm: z.object({
-    provider: z.enum(["anthropic", "openai-compatible", "gemini"]),
+    provider: z.enum(['anthropic', 'openai-compatible', 'gemini']),
     model: z.string().min(1),
     max_tokens: z.number().int().positive(),
     temperature: z.number().min(0).max(2),
     max_messages_per_call: z.number().int().positive(),
-    request_timeout_ms: z.number().int().positive(),
+    request_timeout_ms: z.number().int().positive()
   }),
   // every key defaulted, and the whole section prefaulted, so a config.toml written
   // before Part 2 (no [web] block) still boots
@@ -35,7 +35,7 @@ const configSchema = z.object({
       llm_calls_retention_days: z.number().int().positive().default(14),
       llm_calls_max_rows: z.number().int().positive().default(50_000),
       stats_tick_seconds: z.number().positive().default(2),
-      graph_overview_limit: z.number().int().positive().default(400),
+      graph_overview_limit: z.number().int().positive().default(400)
     })
     .prefault({}),
   // Část 4.1 - slovník jmen (POST /api/v1/dictionary). Defaulted + prefaulted so a
@@ -43,14 +43,14 @@ const configSchema = z.object({
   dictionary: z
     .object({
       max_ids_per_request: z.number().int().positive().default(5000),
-      inline_graph_propagation_max: z.number().int().positive().default(200),
+      inline_graph_propagation_max: z.number().int().positive().default(200)
     })
     .prefault({}),
   // Část 4.2 - sjednocený běh pipeline (POST /api/v1/pipeline).
   pipeline: z
     .object({
       // default for a request that omits options.skip_graph_write (inverted sense)
-      include_graph_write: z.boolean().default(true),
+      include_graph_write: z.boolean().default(true)
     })
     .prefault({}),
   // Část 3 - dotazování. Every key defaulted + section prefaulted, so a config.toml
@@ -74,9 +74,9 @@ const configSchema = z.object({
       weight_recency: z.number().min(0).default(0.15),
       weight_type_preference: z.number().min(0).default(0.15),
       opinion_sentiment_diversity: z.boolean().default(true),
-      vocab_sample_size: z.number().int().positive().default(60),
+      vocab_sample_size: z.number().int().positive().default(60)
     })
-    .prefault({}),
+    .prefault({})
 });
 
 const parsed = configSchema.parse(toml);

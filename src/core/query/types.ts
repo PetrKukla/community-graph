@@ -1,4 +1,4 @@
-import type { QueryIntent, QueryPlan } from "./schemas";
+import type { QueryIntent, QueryPlan } from './schemas';
 
 /** POST /api/v1/query body, after validation. */
 export interface QueryRequest {
@@ -40,14 +40,18 @@ export interface DiscussionMatch {
   embedding?: number[] | null;
 }
 
-export type ExpansionVia = "continuation" | "shared_topic" | "shared_entity" | "cooccurring_topic";
+export type ExpansionVia =
+  | 'continuation'
+  | 'shared_topic'
+  | 'shared_entity'
+  | 'cooccurring_topic';
 
 export interface ExpansionMatch extends DiscussionMatch {
   seedId: string;
   via: ExpansionVia;
 }
 
-export type CandidateSource = "vector" | "anchor" | "expansion";
+export type CandidateSource = 'vector' | 'anchor' | 'expansion';
 
 /** Mutable accumulator while retrieval + expansion merge their hits by discussion id. */
 export interface WorkingCandidate {
@@ -134,7 +138,7 @@ export interface Citation {
 
 export interface QueryAnswer {
   answer: string;
-  confidence: "high" | "medium" | "low";
+  confidence: 'high' | 'medium' | 'low';
   citations: Citation[];
   used_discussion_count: number;
   intent: QueryIntent;

@@ -1,9 +1,13 @@
-import type { EmbeddingProvider } from "../ports/EmbeddingProvider";
-import type { GraphStore } from "../ports/GraphStore";
-import type { Config } from "../../config/config";
-import { cosine } from "./scoring";
-import type { QueryPlan } from "./schemas";
-import type { DiscussionMatch, RetrievalFilters, WorkingCandidate } from "./types";
+import type { EmbeddingProvider } from '../ports/EmbeddingProvider';
+import type { GraphStore } from '../ports/GraphStore';
+import type { Config } from '../../config/config';
+import { cosine } from './scoring';
+import type { QueryPlan } from './schemas';
+import type {
+  DiscussionMatch,
+  RetrievalFilters,
+  WorkingCandidate
+} from './types';
 
 export interface RetrievalResult {
   /** Embedding of the raw question - reused by expansion re-ranking. */
@@ -26,11 +30,15 @@ function blank(m: DiscussionMatch): WorkingCandidate {
     anchorHit: false,
     expansionScore: 0,
     via: null,
-    sources: new Set(),
+    sources: new Set()
   };
 }
 
-function dedupeQueries(question: string, extra: string[], cap: number): string[] {
+function dedupeQueries(
+  question: string,
+  extra: string[],
+  cap: number
+): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const q of [question, ...extra]) {
@@ -54,9 +62,13 @@ export async function retrieve(
   plan: QueryPlan,
   filters: RetrievalFilters,
   deps: { graph: GraphStore; embedder: EmbeddingProvider },
-  cfg: Config["query"],
+  cfg: Config['query']
 ): Promise<RetrievalResult> {
-  const queries = dedupeQueries(question, plan.search_queries, cfg.search_query_variants);
+  const queries = dedupeQueries(
+    question,
+    plan.search_queries,
+    cfg.search_query_variants
+  );
   const vectors = await deps.embedder.embed(queries);
   const questionVector = vectors[0] ?? new Float32Array();
 
@@ -72,13 +84,17 @@ export async function retrieve(
 
   // 2a - vector seeds (one search per rephrasing, in parallel)
   const perQuery = await Promise.all(
-    vectors.map((v) => (v.length > 0 ? deps.graph.searchDiscussionsByVector(v, cfg.vector_top_k, filters) : Promise.resolve([]))),
+    vectors.map((v) =>
+      v.length > 0
+        ? deps.graph.searchDiscussionsByVector(v, cfg.vector_top_k, filters)
+        : Promise.resolve([])
+    )
   );
   for (const hits of perQuery) {
     for (const m of hits) {
       const c = touch(m);
       c.vecSim = Math.max(c.vecSim, m.score);
-      c.sources.add("vector");
+      c.sources.add('vector');
     }
   }
 
@@ -87,12 +103,12 @@ export async function retrieve(
     plan.topics,
     plan.entities,
     cfg.anchor_limit,
-    filters,
+    filters
   );
   for (const m of anchorHits) {
     const c = touch(m);
     c.anchorHit = true;
-    c.sources.add("anchor");
+    c.sources.add('anchor');
     if (m.embedding && questionVector.length > 0) {
       c.vecSim = Math.max(c.vecSim, cosine(questionVector, m.embedding));
     }

@@ -1,5 +1,5 @@
-import type { LabelVocab } from "./types";
-import type { QueryPlan } from "./schemas";
+import type { LabelVocab } from './types';
+import type { QueryPlan } from './schemas';
 
 export const PLANNER_SYSTEM_PROMPT = `Jsi vyhledávací plánovač nad znalostním grafem Discord komunity. Dostaneš otázku uživatele
 a slovník nejčastějších témat a entit, které v grafu existují. Tvým úkolem NENÍ odpovědět -
@@ -18,15 +18,20 @@ Vrať:
   nech prázdné. Časové ani uživatelské omezení neřeš, to zadává uživatel zvlášť.
 - answer_language: ISO 639-1 kód jazyka otázky (obvykle "cs").`;
 
-export function buildPlannerUserPrompt(question: string, vocab: LabelVocab): string {
-  const topics = vocab.topics.length > 0 ? vocab.topics.join(", ") : "(zatím žádná)";
-  const entities = vocab.entities.length > 0 ? vocab.entities.join(", ") : "(zatím žádné)";
+export function buildPlannerUserPrompt(
+  question: string,
+  vocab: LabelVocab
+): string {
+  const topics =
+    vocab.topics.length > 0 ? vocab.topics.join(', ') : '(zatím žádná)';
+  const entities =
+    vocab.entities.length > 0 ? vocab.entities.join(', ') : '(zatím žádné)';
   return [
     `Otázka uživatele:\n${question.trim()}`,
-    "",
+    '',
     `Slovník grafu – témata: ${topics}`,
-    `Slovník grafu – entity: ${entities}`,
-  ].join("\n");
+    `Slovník grafu – entity: ${entities}`
+  ].join('\n');
 }
 
 export const SYNTHESIS_SYSTEM_PROMPT = `Jsi asistent, který odpovídá na otázky o Discord komunitě VÝHRADNĚ z dodaných výňatků z diskuzí.
@@ -44,12 +49,16 @@ Pravidla:
 Vrať strukturu: answer (text s [D#] odkazy), used_citations (seznam použitých [D#]),
 confidence (high/medium/low), caveats (co chybí, nebo null).`;
 
-export function buildSynthesisUserPrompt(question: string, plan: QueryPlan, contextText: string): string {
+export function buildSynthesisUserPrompt(
+  question: string,
+  plan: QueryPlan,
+  contextText: string
+): string {
   return [
     `Otázka:\n${question.trim()}`,
     `Jazyk odpovědi: ${plan.answer_language}`,
-    "",
-    "Podklady z grafu:",
-    contextText,
-  ].join("\n");
+    '',
+    'Podklady z grafu:',
+    contextText
+  ].join('\n');
 }

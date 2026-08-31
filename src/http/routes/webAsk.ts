@@ -1,10 +1,10 @@
-import { Hono } from "hono";
-import { eq } from "drizzle-orm";
-import { db } from "../../db/sqlite/client";
-import { discussionsLocal, messages, users } from "../../db/sqlite/schema";
-import { loadEnrichmentRow } from "../../db/sqlite/repositories/enrichmentRepository";
-import { getGraphStore, isNeo4jConfigured } from "../../adapters/graph";
-import { methodNotAllowed } from "../middleware/methodNotAllowed";
+import { Hono } from 'hono';
+import { eq } from 'drizzle-orm';
+import { db } from '../../db/sqlite/client';
+import { discussionsLocal, messages, users } from '../../db/sqlite/schema';
+import { loadEnrichmentRow } from '../../db/sqlite/repositories/enrichmentRepository';
+import { getGraphStore, isNeo4jConfigured } from '../../adapters/graph';
+import { methodNotAllowed } from '../middleware/methodNotAllowed';
 
 /**
  * Small read endpoints for the web query view (Část 4.3). Mounted only when [web] enabled.
@@ -12,10 +12,14 @@ import { methodNotAllowed } from "../middleware/methodNotAllowed";
 export const webAskRoute = new Hono();
 
 /** Bundle for the citation drawer: the local discussion row + enrichment + its raw messages. */
-webAskRoute.get("/discussions/:id", (c) => {
-  const id = c.req.param("id");
-  const row = db.select().from(discussionsLocal).where(eq(discussionsLocal.id, id)).get();
-  if (!row) return c.json({ error: "not_found" }, 404);
+webAskRoute.get('/discussions/:id', (c) => {
+  const id = c.req.param('id');
+  const row = db
+    .select()
+    .from(discussionsLocal)
+    .where(eq(discussionsLocal.id, id))
+    .get();
+  if (!row) return c.json({ error: 'not_found' }, 404);
 
   const msgs = db
     .select({
@@ -24,7 +28,7 @@ webAskRoute.get("/discussions/:id", (c) => {
       content: messages.content,
       createdAt: messages.createdAt,
       username: users.username,
-      displayName: users.displayName,
+      displayName: users.displayName
     })
     .from(messages)
     .leftJoin(users, eq(users.id, messages.authorId))
@@ -49,25 +53,36 @@ webAskRoute.get("/discussions/:id", (c) => {
       author_id: m.authorId,
       author_label: m.displayName ?? m.username ?? m.authorId,
       content: m.content,
-      created_at: m.createdAt,
-    })),
+      created_at: m.createdAt
+    }))
   });
 });
-webAskRoute.all("/discussions/:id", methodNotAllowed);
+webAskRoute.all('/discussions/:id', methodNotAllowed);
 
 /** Domain id -> Neo4j elementId, so a citation can deep-link to /graph?focus=<discussion_id>. */
-webAskRoute.get("/graph/node/by-domain-id", async (c) => {
-  if (!isNeo4jConfigured()) return c.json({ error: "neo4j_not_configured" }, 503);
-  const label = c.req.query("label") ?? "";
-  const id = c.req.query("id") ?? "";
-  if (!label || !id) return c.json({ error: "invalid_request", details: "label and id are required" }, 400);
+webAskRoute.get('/graph/node/by-domain-id', async (c) => {
+  if (!isNeo4jConfigured())
+    return c.json({ error: 'neo4j_not_configured' }, 503);
+  const label = c.req.query('label') ?? '';
+  const id = c.req.query('id') ?? '';
+  if (!label || !id)
+    return c.json(
+      { error: 'invalid_request', details: 'label and id are required' },
+      400
+    );
 
   try {
     const elementId = await getGraphStore().nodeIdByDomainId(label, id);
-    if (!elementId) return c.json({ error: "not_found" }, 404);
+    if (!elementId) return c.json({ error: 'not_found' }, 404);
     return c.json({ element_id: elementId });
   } catch (err) {
-    return c.json({ error: "graph_query_failed", message: err instanceof Error ? err.message : String(err) }, 502);
+    return c.json(
+      {
+        error: 'graph_query_failed',
+        message: err instanceof Error ? err.message : String(err)
+      },
+      502
+    );
   }
 });
-webAskRoute.all("/graph/node/by-domain-id", methodNotAllowed);
+webAskRoute.all('/graph/node/by-domain-id', methodNotAllowed);

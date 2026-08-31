@@ -1,4 +1,4 @@
-import { EventEmitter } from "node:events";
+import { EventEmitter } from 'node:events';
 
 /** Message counts at each pipeline stage (messages that have reached at least that stage). */
 export interface PipelineFunnel {
@@ -43,7 +43,7 @@ export interface LlmCallEvent {
   job_id: string | null;
   started_at: string;
   duration_ms: number;
-  status: "ok" | "error";
+  status: 'ok' | 'error';
   prompt_tokens: number | null;
   completion_tokens: number | null;
   error: string | null;
@@ -72,12 +72,12 @@ export interface DictionarySyncedEvent {
 }
 
 export interface BusEventMap {
-  "job.created": JobCreatedEvent;
-  "job.updated": JobUpdatedEvent;
-  "llm.call": LlmCallEvent;
-  "ingest.batch": IngestBatchEvent;
-  "stats.tick": StatsTickEvent;
-  "dictionary.synced": DictionarySyncedEvent;
+  'job.created': JobCreatedEvent;
+  'job.updated': JobUpdatedEvent;
+  'llm.call': LlmCallEvent;
+  'ingest.batch': IngestBatchEvent;
+  'stats.tick': StatsTickEvent;
+  'dictionary.synced': DictionarySyncedEvent;
 }
 
 export type BusEventName = keyof BusEventMap;
@@ -93,7 +93,7 @@ export type BusEnvelope = {
  */
 class TypedEventBus {
   readonly #emitter = new EventEmitter();
-  readonly #anyEvent = Symbol("any");
+  readonly #anyEvent = Symbol('any');
 
   constructor() {
     this.#emitter.setMaxListeners(0);
@@ -104,15 +104,20 @@ class TypedEventBus {
     this.#emitter.emit(this.#anyEvent, { event, data: payload } as BusEnvelope);
   }
 
-  on<K extends BusEventName>(event: K, listener: (payload: BusEventMap[K]) => void): () => void {
+  on<K extends BusEventName>(
+    event: K,
+    listener: (payload: BusEventMap[K]) => void
+  ): () => void {
     this.#emitter.on(event, listener as (payload: unknown) => void);
-    return () => this.#emitter.off(event, listener as (payload: unknown) => void);
+    return () =>
+      this.#emitter.off(event, listener as (payload: unknown) => void);
   }
 
   /** Subscribe to every event as `{ event, data }`. Returns an unsubscribe function. */
   onAny(listener: (envelope: BusEnvelope) => void): () => void {
     this.#emitter.on(this.#anyEvent, listener as (payload: unknown) => void);
-    return () => this.#emitter.off(this.#anyEvent, listener as (payload: unknown) => void);
+    return () =>
+      this.#emitter.off(this.#anyEvent, listener as (payload: unknown) => void);
   }
 }
 

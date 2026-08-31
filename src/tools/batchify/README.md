@@ -39,11 +39,11 @@ Se `--out <dir>` se zapíše složková struktura (složka i mezisložky se vytv
 Složky `<guild>` a `<channel>` se pojmenují podle `--guild-name` / `--channel`; kde
 název chybí, použije se ID. Režim řídí `--dir-names`:
 
-| `--dir-names` | `<guild>` / `<channel>` |
-|---|---|
+| `--dir-names`    | `<guild>` / `<channel>`                                                             |
+| ---------------- | ----------------------------------------------------------------------------------- |
 | `name` (výchozí) | název, kde chybí → ID; kdyby dvě různá ID spadla do stejné složky, skončí to chybou |
-| `id` | vždy ID |
-| `name-id` | `<název>-<id>` (čitelné a bez rizika kolize) |
+| `id`             | vždy ID                                                                             |
+| `name-id`        | `<název>-<id>` (čitelné a bez rizika kolize)                                        |
 
 Každý soubor je jedna dávka přesně ve tvaru, který bere `POST /api/v1/batches`:
 
@@ -89,18 +89,18 @@ Když se pro nějaký kanál guilda nenajde, utilita skončí chybou s výpisem 
 
 ### Volby
 
-| Volba | Význam |
-|---|---|
-| `--out <dir>`, `-o` | výstupní složka; bez ní jde ploché pole dávek na stdout |
-| `--guild <id>`, `-g` | ID guildy/serveru pro kanály mimo `--guild-map` |
-| `--guild-name <name>` | název guildy do `guild.name` i do názvu složky (jen pro guildu z `--guild`) |
-| `--guild-map <path>` | JSON `{ "channel_id": "guild_id" }` pro víc serverů v jednom dumpu |
+| Volba                 | Význam                                                                                 |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| `--out <dir>`, `-o`   | výstupní složka; bez ní jde ploché pole dávek na stdout                                |
+| `--guild <id>`, `-g`  | ID guildy/serveru pro kanály mimo `--guild-map`                                        |
+| `--guild-name <name>` | název guildy do `guild.name` i do názvu složky (jen pro guildu z `--guild`)            |
+| `--guild-map <path>`  | JSON `{ "channel_id": "guild_id" }` pro víc serverů v jednom dumpu                     |
 | `--channel <id=name>` | název kanálu pro dané `channel_id` do `channel.name` i do názvu složky (lze zopakovat) |
-| `--dir-names <mode>` | `name` (výchozí) \| `id` \| `name-id` — jak pojmenovat složky `<guild>`/`<channel>` |
-| `--include-deleted` | zahrnout i smazané zprávy (`deleted_at != null`) |
-| `--include-empty` | zahrnout i zprávy s prázdným obsahem |
-| `--pretty` | odsazený JSON i pro stdout náhled (soubory jsou odsazené vždy) |
-| `--help`, `-h` | nápověda |
+| `--dir-names <mode>`  | `name` (výchozí) \| `id` \| `name-id` — jak pojmenovat složky `<guild>`/`<channel>`    |
+| `--include-deleted`   | zahrnout i smazané zprávy (`deleted_at != null`)                                       |
+| `--include-empty`     | zahrnout i zprávy s prázdným obsahem                                                   |
+| `--pretty`            | odsazený JSON i pro stdout náhled (soubory jsou odsazené vždy)                         |
+| `--help`, `-h`        | nápověda                                                                               |
 
 ### Příklady
 

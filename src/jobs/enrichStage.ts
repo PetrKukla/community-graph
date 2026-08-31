@@ -1,14 +1,14 @@
-import { config } from "../config/config";
-import { enrichDiscussion } from "../core/enrichment/enrichmentPipeline";
-import type { EmbeddingProvider } from "../core/ports/EmbeddingProvider";
-import type { LLMProvider } from "../core/ports/LLMProvider";
+import { config } from '../config/config';
+import { enrichDiscussion } from '../core/enrichment/enrichmentPipeline';
+import type { EmbeddingProvider } from '../core/ports/EmbeddingProvider';
+import type { LLMProvider } from '../core/ports/LLMProvider';
 import {
   getEnrichableDiscussions,
   getDiscussionMessages,
   resetPriorEnrichment,
   persistSingleEnrichment,
-  persistSplitEnrichment,
-} from "../db/sqlite/repositories/enrichmentRepository";
+  persistSplitEnrichment
+} from '../db/sqlite/repositories/enrichmentRepository';
 
 export interface EnrichChannelResult {
   enrichedDiscussionCount: number; // discussions enriched as a single unit
@@ -27,10 +27,11 @@ export async function enrichChannel(
   channelId: string,
   llm: LLMProvider,
   embeddingProvider: EmbeddingProvider,
-  options: EnrichChannelOptions = {},
+  options: EnrichChannelOptions = {}
 ): Promise<EnrichChannelResult> {
   let rows = getEnrichableDiscussions(channelId);
-  if (options.maxDiscussions !== undefined) rows = rows.slice(0, options.maxDiscussions);
+  if (options.maxDiscussions !== undefined)
+    rows = rows.slice(0, options.maxDiscussions);
 
   const result: EnrichChannelResult = {
     enrichedDiscussionCount: 0,
@@ -38,13 +39,13 @@ export async function enrichChannel(
     createdSegmentCount: 0,
     skippedEmptyCount: 0,
     failedCount: 0,
-    errors: [],
+    errors: []
   };
 
   for (const row of rows) {
     try {
       // a re-enriched discussion may already have children + enrichment rows from a prior run
-      if (row.status === "needs_reenrichment") resetPriorEnrichment(row.id);
+      if (row.status === 'needs_reenrichment') resetPriorEnrichment(row.id);
 
       const messages = getDiscussionMessages(row.id);
       if (messages.length === 0) {
@@ -57,11 +58,16 @@ export async function enrichChannel(
         messages,
         llm,
         embeddingProvider,
-        maxMessagesPerCall: config.llm.max_messages_per_call,
+        maxMessagesPerCall: config.llm.max_messages_per_call
       });
 
-      if (outcome.kind === "single") {
-        persistSingleEnrichment(row.id, outcome.enrichment, outcome.embedding, raw);
+      if (outcome.kind === 'single') {
+        persistSingleEnrichment(
+          row.id,
+          outcome.enrichment,
+          outcome.embedding,
+          raw
+        );
         result.enrichedDiscussionCount++;
       } else {
         const persisted = persistSplitEnrichment(row, outcome.segments, raw);
@@ -70,7 +76,10 @@ export async function enrichChannel(
       }
     } catch (err) {
       result.failedCount++;
-      result.errors.push({ discussionId: row.id, error: err instanceof Error ? err.message : String(err) });
+      result.errors.push({
+        discussionId: row.id,
+        error: err instanceof Error ? err.message : String(err)
+      });
     }
   }
 

@@ -1,10 +1,20 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
-import { db } from "../client";
-import { messages, discussionsLocal, discussionEnrichment, channelCheckpoints } from "../schema";
-import type { ClusterableMessage } from "../../../core/clustering/types";
-import type { FinalizedDiscussion, MessageAssignment } from "../../../core/clustering/types";
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { db } from '../client';
+import {
+  messages,
+  discussionsLocal,
+  discussionEnrichment,
+  channelCheckpoints
+} from '../schema';
+import type { ClusterableMessage } from '../../../core/clustering/types';
+import type {
+  FinalizedDiscussion,
+  MessageAssignment
+} from '../../../core/clustering/types';
 
-export function getUnprocessedMessages(channelId: string): ClusterableMessage[] {
+export function getUnprocessedMessages(
+  channelId: string
+): ClusterableMessage[] {
   const rows = db
     .select({
       id: messages.id,
@@ -14,7 +24,7 @@ export function getUnprocessedMessages(channelId: string): ClusterableMessage[] 
       replyToMessageId: messages.replyToMessageId,
       threadId: messages.threadId,
       mentions: messages.mentions,
-      wordCount: messages.wordCount,
+      wordCount: messages.wordCount
     })
     .from(messages)
     .where(and(eq(messages.channelId, channelId), eq(messages.processed, 0)))
@@ -42,7 +52,11 @@ export function resolveReplyTargetDiscussion(messageId: string): string | null {
 }
 
 export function findThreadDiscussion(threadId: string): string | null {
-  const row = db.select({ id: discussionsLocal.id }).from(discussionsLocal).where(eq(discussionsLocal.threadId, threadId)).get();
+  const row = db
+    .select({ id: discussionsLocal.id })
+    .from(discussionsLocal)
+    .where(eq(discussionsLocal.threadId, threadId))
+    .get();
   return row?.id ?? null;
 }
 
@@ -55,9 +69,15 @@ export interface DeleteChannelMessagesResult {
  * Debug-only: wipes a channel's messages, staged discussions and checkpoint so it can be
  * re-ingested from scratch (e.g. after tuning clustering thresholds in config.toml).
  */
-export function deleteChannelMessages(channelId: string): DeleteChannelMessagesResult {
+export function deleteChannelMessages(
+  channelId: string
+): DeleteChannelMessagesResult {
   return db.transaction((tx) => {
-    const deletedMessages = tx.delete(messages).where(eq(messages.channelId, channelId)).returning({ id: messages.id }).all();
+    const deletedMessages = tx
+      .delete(messages)
+      .where(eq(messages.channelId, channelId))
+      .returning({ id: messages.id })
+      .all();
     const discussionIds = tx
       .select({ id: discussionsLocal.id })
       .from(discussionsLocal)
@@ -65,15 +85,22 @@ export function deleteChannelMessages(channelId: string): DeleteChannelMessagesR
       .all()
       .map((r) => r.id);
     if (discussionIds.length > 0) {
-      tx.delete(discussionEnrichment).where(inArray(discussionEnrichment.discussionId, discussionIds)).run();
+      tx.delete(discussionEnrichment)
+        .where(inArray(discussionEnrichment.discussionId, discussionIds))
+        .run();
     }
     const deletedDiscussions = tx
       .delete(discussionsLocal)
       .where(eq(discussionsLocal.channelId, channelId))
       .returning({ id: discussionsLocal.id })
       .all();
-    tx.delete(channelCheckpoints).where(eq(channelCheckpoints.channelId, channelId)).run();
-    return { deletedMessageCount: deletedMessages.length, deletedDiscussionCount: deletedDiscussions.length };
+    tx.delete(channelCheckpoints)
+      .where(eq(channelCheckpoints.channelId, channelId))
+      .run();
+    return {
+      deletedMessageCount: deletedMessages.length,
+      deletedDiscussionCount: deletedDiscussions.length
+    };
   });
 }
 
@@ -90,8 +117,11 @@ export interface PersistSummary {
  */
 export function persistClusterResults(
   channelId: string,
-  results: { assignments: MessageAssignment[]; discussions: FinalizedDiscussion[] }[],
-  closedThroughAt: string | null,
+  results: {
+    assignments: MessageAssignment[];
+    discussions: FinalizedDiscussion[];
+  }[],
+  closedThroughAt: string | null
 ): PersistSummary {
   const now = new Date().toISOString();
   const allDiscussions = results.flatMap((r) => r.discussions);
@@ -108,7 +138,7 @@ export function persistClusterResults(
           .set({
             blockEndAt: d.blockEndAt,
             messageCount: sql`${discussionsLocal.messageCount} + ${d.messageCount}`,
-            status: "needs_reenrichment",
+            status: 'needs_reenrichment'
           })
           .where(eq(discussionsLocal.id, d.id))
           .run();
@@ -121,13 +151,17 @@ export function persistClusterResults(
             threadId: d.threadId,
             blockStartAt: d.blockStartAt,
             blockEndAt: d.blockEndAt,
-            status: "clustering",
+            status: 'clustering',
             messageCount: d.messageCount,
             centroidEmbedding: d.centroidEmbedding
-              ? Buffer.from(d.centroidEmbedding.buffer, d.centroidEmbedding.byteOffset, d.centroidEmbedding.byteLength)
+              ? Buffer.from(
+                  d.centroidEmbedding.buffer,
+                  d.centroidEmbedding.byteOffset,
+                  d.centroidEmbedding.byteLength
+                )
               : null,
             continuationOfDiscussionId: d.continuationOfDiscussionId ?? null,
-            continuationReason: d.continuationReason ?? null,
+            continuationReason: d.continuationReason ?? null
           })
           .run();
         newDiscussionCount++;
@@ -135,7 +169,10 @@ export function persistClusterResults(
     }
 
     for (const a of allAssignments) {
-      tx.update(messages).set({ processed: 1, discussionId: a.discussionId }).where(eq(messages.id, a.messageId)).run();
+      tx.update(messages)
+        .set({ processed: 1, discussionId: a.discussionId })
+        .where(eq(messages.id, a.messageId))
+        .run();
     }
 
     const bumps = new Map<string, number>();
@@ -145,21 +182,32 @@ export function persistClusterResults(
     }
     for (const [discussionId, count] of bumps) {
       tx.update(discussionsLocal)
-        .set({ messageCount: sql`${discussionsLocal.messageCount} + ${count}`, status: "needs_reenrichment" })
+        .set({
+          messageCount: sql`${discussionsLocal.messageCount} + ${count}`,
+          status: 'needs_reenrichment'
+        })
         .where(eq(discussionsLocal.id, discussionId))
         .run();
     }
 
     if (closedThroughAt) {
       tx.insert(channelCheckpoints)
-        .values({ channelId, lastClosedBlockEndAt: closedThroughAt, updatedAt: now })
+        .values({
+          channelId,
+          lastClosedBlockEndAt: closedThroughAt,
+          updatedAt: now
+        })
         .onConflictDoUpdate({
           target: channelCheckpoints.channelId,
-          set: { lastClosedBlockEndAt: closedThroughAt, updatedAt: now },
+          set: { lastClosedBlockEndAt: closedThroughAt, updatedAt: now }
         })
         .run();
     }
 
-    return { processedMessageCount: allAssignments.length, newDiscussionCount, extendedDiscussionCount };
+    return {
+      processedMessageCount: allAssignments.length,
+      newDiscussionCount,
+      extendedDiscussionCount
+    };
   });
 }

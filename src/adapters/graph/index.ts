@@ -1,6 +1,6 @@
-import type { GraphStore } from "../../core/ports/GraphStore";
-import { Neo4jGraphStore } from "./Neo4jGraphStore";
-import { getNeo4jDriver } from "./driver";
+import type { GraphStore } from '../../core/ports/GraphStore';
+import { Neo4jGraphStore } from './Neo4jGraphStore';
+import { getNeo4jDriver } from './driver';
 
 let cached: GraphStore | null = null;
 
@@ -10,4 +10,4 @@ export function getGraphStore(): GraphStore {
   return cached;
 }
 
-export { isNeo4jConfigured, closeNeo4jDriver } from "./driver";
+export { isNeo4jConfigured, closeNeo4jDriver } from './driver';

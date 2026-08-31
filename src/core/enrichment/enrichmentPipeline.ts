@@ -1,8 +1,13 @@
-import type { EmbeddingProvider } from "../ports/EmbeddingProvider";
-import type { LLMProvider } from "../ports/LLMProvider";
-import { ENRICHMENT_SYSTEM_PROMPT, buildEnrichmentUserPrompt } from "./prompt";
-import { enrichmentResponseSchema, type EnrichmentSegmentRaw } from "./schemas";
-import type { DiscussionEnrichment, EnrichableMessage, EnrichmentOutcome, EnrichmentSegment } from "./types";
+import type { EmbeddingProvider } from '../ports/EmbeddingProvider';
+import type { LLMProvider } from '../ports/LLMProvider';
+import { ENRICHMENT_SYSTEM_PROMPT, buildEnrichmentUserPrompt } from './prompt';
+import { enrichmentResponseSchema, type EnrichmentSegmentRaw } from './schemas';
+import type {
+  DiscussionEnrichment,
+  EnrichableMessage,
+  EnrichmentOutcome,
+  EnrichmentSegment
+} from './types';
 
 export interface EnrichDiscussionParams {
   discussionId: string; // for logging only
@@ -28,12 +33,15 @@ function toDomainEnrichment(seg: EnrichmentSegmentRaw): DiscussionEnrichment {
     sentimentScore: seg.sentiment_score,
     language: seg.language,
     discussionType: seg.discussion_type,
-    resolved: seg.resolved,
+    resolved: seg.resolved
   };
 }
 
 function embeddingText(e: DiscussionEnrichment): string {
-  return [e.title, e.summary, e.topics.join(", ")].map((s) => s.trim()).filter(Boolean).join(". ");
+  return [e.title, e.summary, e.topics.join(', ')]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join('. ');
 }
 
 /**
@@ -42,7 +50,10 @@ function embeddingText(e: DiscussionEnrichment): string {
  * - a message the LLM forgot goes to the segment of the chronologically nearest assigned message
  * - if the LLM gave no usable ids at all, fall back to contiguous chronological chunks
  */
-function partitionMessages(messages: EnrichableMessage[], segments: EnrichmentSegmentRaw[]): EnrichableMessage[][] {
+function partitionMessages(
+  messages: EnrichableMessage[],
+  segments: EnrichmentSegmentRaw[]
+): EnrichableMessage[][] {
   const known = new Set(messages.map((m) => m.id));
   const segIndexById = new Map<string, number>();
   segments.forEach((seg, i) => {
@@ -82,11 +93,16 @@ function partitionMessages(messages: EnrichableMessage[], segments: EnrichmentSe
   return buckets;
 }
 
-async function embed(provider: EmbeddingProvider, texts: string[]): Promise<(Float32Array | null)[]> {
+async function embed(
+  provider: EmbeddingProvider,
+  texts: string[]
+): Promise<(Float32Array | null)[]> {
   const nonEmpty = texts.map((t) => t.length > 0);
   const vectors = await provider.embed(texts.filter((_, i) => nonEmpty[i]));
   let cursor = 0;
-  return texts.map((_, i) => (nonEmpty[i] ? (vectors[cursor++] ?? null) : null));
+  return texts.map((_, i) =>
+    nonEmpty[i] ? (vectors[cursor++] ?? null) : null
+  );
 }
 
 /**
@@ -95,28 +111,39 @@ async function embed(provider: EmbeddingProvider, texts: string[]): Promise<(Flo
  * partitioned so nothing is lost). Requirement: a lone segment is always treated as `single`,
  * even if the LLM listed only some message ids.
  */
-export async function enrichDiscussion(params: EnrichDiscussionParams): Promise<EnrichDiscussionResult> {
-  const { discussionId, messages, llm, embeddingProvider, maxMessagesPerCall } = params;
+export async function enrichDiscussion(
+  params: EnrichDiscussionParams
+): Promise<EnrichDiscussionResult> {
+  const { discussionId, messages, llm, embeddingProvider, maxMessagesPerCall } =
+    params;
 
   const { value, raw } = await llm.generateStructured({
     system: ENRICHMENT_SYSTEM_PROMPT,
     user: buildEnrichmentUserPrompt(messages, maxMessagesPerCall),
     schema: enrichmentResponseSchema,
-    schemaName: "discussion_enrichment",
-    context: `discussion=${discussionId} (${messages.length} zpráv)`,
+    schemaName: 'discussion_enrichment',
+    context: `discussion=${discussionId} (${messages.length} zpráv)`
   });
 
   const segments = value.segments;
 
   if (segments.length === 1) {
     const enrichment = toDomainEnrichment(segments[0]!);
-    const [embedding] = await embed(embeddingProvider, [embeddingText(enrichment)]);
-    return { outcome: { kind: "single", enrichment, embedding: embedding ?? null }, raw };
+    const [embedding] = await embed(embeddingProvider, [
+      embeddingText(enrichment)
+    ]);
+    return {
+      outcome: { kind: 'single', enrichment, embedding: embedding ?? null },
+      raw
+    };
   }
 
   const buckets = partitionMessages(messages, segments);
   const enrichments = segments.map((seg) => toDomainEnrichment(seg));
-  const embeddings = await embed(embeddingProvider, enrichments.map(embeddingText));
+  const embeddings = await embed(
+    embeddingProvider,
+    enrichments.map(embeddingText)
+  );
 
   const finalSegments: EnrichmentSegment[] = [];
   segments.forEach((_, i) => {
@@ -127,7 +154,7 @@ export async function enrichDiscussion(params: EnrichDiscussionParams): Promise<
       blockStartAt: msgs[0]!.createdAt,
       blockEndAt: msgs[msgs.length - 1]!.createdAt,
       enrichment: enrichments[i]!,
-      embedding: embeddings[i] ?? null,
+      embedding: embeddings[i] ?? null
     });
   });
 
@@ -136,8 +163,8 @@ export async function enrichDiscussion(params: EnrichDiscussionParams): Promise<
     const only = finalSegments[0];
     const enrichment = only?.enrichment ?? enrichments[0]!;
     const embedding = only?.embedding ?? embeddings[0] ?? null;
-    return { outcome: { kind: "single", enrichment, embedding }, raw };
+    return { outcome: { kind: 'single', enrichment, embedding }, raw };
   }
 
-  return { outcome: { kind: "split", segments: finalSegments }, raw };
+  return { outcome: { kind: 'split', segments: finalSegments }, raw };
 }

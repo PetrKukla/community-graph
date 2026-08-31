@@ -1,7 +1,7 @@
-import { sql } from "drizzle-orm";
-import { db } from "../client";
-import { guilds, channels, users, messages, ingestionBatches } from "../schema";
-import type { IngestBatchRequest } from "../../../core/domain/types";
+import { sql } from 'drizzle-orm';
+import { db } from '../client';
+import { guilds, channels, users, messages, ingestionBatches } from '../schema';
+import type { IngestBatchRequest } from '../../../core/domain/types';
 
 const INSERT_CHUNK_SIZE = 500;
 
@@ -26,13 +26,19 @@ export interface IngestResult {
   duplicateCount: number;
 }
 
-export function ingestBatch(batchId: string, req: IngestBatchRequest): IngestResult {
+export function ingestBatch(
+  batchId: string,
+  req: IngestBatchRequest
+): IngestResult {
   const now = new Date().toISOString();
 
   return db.transaction((tx) => {
     // Names are owned by POST /api/v1/dictionary. Ingest only ever writes the id skeleton
     // (so FKs and graph-write resolve) plus channel/user activity timestamps.
-    tx.insert(guilds).values({ id: req.guild.id, createdAt: now }).onConflictDoNothing().run();
+    tx.insert(guilds)
+      .values({ id: req.guild.id, createdAt: now })
+      .onConflictDoNothing()
+      .run();
 
     tx.insert(channels)
       .values({
@@ -40,15 +46,15 @@ export function ingestBatch(batchId: string, req: IngestBatchRequest): IngestRes
         guildId: req.guild.id,
         type: req.channel.type ?? null,
         createdAt: now,
-        updatedAt: now,
+        updatedAt: now
       })
       .onConflictDoUpdate({
         target: channels.id,
         set: {
           updatedAt: now,
           // type still rides along the batch; only overwrite when the batch actually carries it
-          ...(req.channel.type !== undefined ? { type: req.channel.type } : {}),
-        },
+          ...(req.channel.type !== undefined ? { type: req.channel.type } : {})
+        }
       })
       .run();
 
@@ -56,14 +62,19 @@ export function ingestBatch(batchId: string, req: IngestBatchRequest): IngestRes
     for (const m of req.messages) authorIds.add(m.author.id);
     for (const authorId of authorIds) {
       tx.insert(users)
-        .values({ id: authorId, firstSeenAt: now, lastSeenAt: now, messageCount: 0 })
+        .values({
+          id: authorId,
+          firstSeenAt: now,
+          lastSeenAt: now,
+          messageCount: 0
+        })
         .onConflictDoUpdate({
           target: users.id,
           // widen the seen-window; coalesce guards rows pre-seeded by dictionary (NULL seen columns)
           set: {
             firstSeenAt: sql`min(coalesce(${users.firstSeenAt}, ${now}), ${now})`,
-            lastSeenAt: sql`max(coalesce(${users.lastSeenAt}, ${now}), ${now})`,
-          },
+            lastSeenAt: sql`max(coalesce(${users.lastSeenAt}, ${now}), ${now})`
+          }
         })
         .run();
     }
@@ -75,7 +86,7 @@ export function ingestBatch(batchId: string, req: IngestBatchRequest): IngestRes
         receivedAt: now,
         messageCount: req.messages.length,
         insertedCount: 0,
-        duplicateCount: 0,
+        duplicateCount: 0
       })
       .run();
 
@@ -99,8 +110,8 @@ export function ingestBatch(batchId: string, req: IngestBatchRequest): IngestRes
             batchId,
             ingestedAt: now,
             processed: 0,
-            discussionId: null,
-          })),
+            discussionId: null
+          }))
         )
         .onConflictDoNothing()
         .returning({ id: messages.id })
@@ -128,6 +139,11 @@ export function ingestBatch(batchId: string, req: IngestBatchRequest): IngestRes
       .where(sql`${ingestionBatches.id} = ${batchId}`)
       .run();
 
-    return { batchId, messageCount: req.messages.length, insertedCount, duplicateCount };
+    return {
+      batchId,
+      messageCount: req.messages.length,
+      insertedCount,
+      duplicateCount
+    };
   });
 }

@@ -1,13 +1,13 @@
-const API_KEY_STORAGE = "cg:api-key";
+const API_KEY_STORAGE = 'cg:api-key';
 
 /** Base URL of the API. Empty string in prod (same origin, optionally behind a reverse proxy). */
-export const apiBase: string = import.meta.env.VITE_API_BASE ?? "";
+export const apiBase: string = import.meta.env.VITE_API_BASE ?? '';
 
 function storedApiKey(): string {
   try {
-    return localStorage.getItem(API_KEY_STORAGE) ?? "";
+    return localStorage.getItem(API_KEY_STORAGE) ?? '';
   } catch {
-    return "";
+    return '';
   }
 }
 
@@ -32,9 +32,9 @@ export function setApiKey(value: string): void {
 /** WebSocket URL for the event stream, carrying the API key as `?token=` (WS can't set headers). */
 export function streamUrl(): string {
   const base = apiBase || window.location.origin;
-  const url = new URL("/api/v1/stream", base);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  const url = new URL('/api/v1/stream', base);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   const key = apiKey();
-  if (key) url.searchParams.set("token", key);
+  if (key) url.searchParams.set('token', key);
   return url.toString();
 }

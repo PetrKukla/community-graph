@@ -21,14 +21,14 @@ výhradně tímto endpointem. Názvy se propíšou do Neo4j, takže jsou vidět 
 
 ## Výchozí stav — kde dnes názvy žijí
 
-| Vrstva | Co drží název | Kdo to zapisuje |
-|---|---|---|
-| SQLite `guilds.name` | název serveru | `ingestBatch()` — `onConflictDoUpdate` z `req.guild.name` |
-| SQLite `channels.name`, `channels.type` | název + typ kanálu | `ingestBatch()` z `req.channel` |
-| SQLite `users.username`, `users.display_name` | jména uživatele | `ingestBatch()` z `req.messages[].author` |
-| Neo4j `Channel.name` | název kanálu | `graph-write` (`MERGE_DISCUSSION_AND_CHANNEL`), z payloadu |
-| Neo4j `User.username`, `User.display_name` | jména uživatele | `graph-write` (`MERGE_PARTICIPANTS`), z participantů |
-| Neo4j — **server nemá vlastní uzel** | — | jen `Channel.guild_id` jako property |
+| Vrstva                                        | Co drží název      | Kdo to zapisuje                                            |
+| --------------------------------------------- | ------------------ | ---------------------------------------------------------- |
+| SQLite `guilds.name`                          | název serveru      | `ingestBatch()` — `onConflictDoUpdate` z `req.guild.name`  |
+| SQLite `channels.name`, `channels.type`       | název + typ kanálu | `ingestBatch()` z `req.channel`                            |
+| SQLite `users.username`, `users.display_name` | jména uživatele    | `ingestBatch()` z `req.messages[].author`                  |
+| Neo4j `Channel.name`                          | název kanálu       | `graph-write` (`MERGE_DISCUSSION_AND_CHANNEL`), z payloadu |
+| Neo4j `User.username`, `User.display_name`    | jména uživatele    | `graph-write` (`MERGE_PARTICIPANTS`), z participantů       |
+| Neo4j — **server nemá vlastní uzel**          | —                  | jen `Channel.guild_id` jako property                       |
 
 Web (`nodeCaption` v `Neo4jGraphStore`) už dnes preferuje `display_name` → `username` u `User`
 a `name` u `Channel`; při `null` padá na `"(uživatel)"` / `"(kanál)"`. Server se v grafu
@@ -74,31 +74,31 @@ už tu diskuzi znovu nesáhne. Propagaci změn do už zapsaného grafu musíme �
 Změny ve `src/db/sqlite/schema.ts`, migrace přes `bun run db:generate`:
 
 ```typescript
-export const guilds = sqliteTable("guilds", {
-  id: text("id").primaryKey(),
-  name: text("name"),
-  createdAt: text("created_at").notNull(),
-  namesSyncedAt: text("names_synced_at"),          // NOVÉ: kdy dictionary naposledy sáhl na name
+export const guilds = sqliteTable('guilds', {
+  id: text('id').primaryKey(),
+  name: text('name'),
+  createdAt: text('created_at').notNull(),
+  namesSyncedAt: text('names_synced_at') // NOVÉ: kdy dictionary naposledy sáhl na name
 });
 
-export const channels = sqliteTable("channels", {
-  id: text("id").primaryKey(),
-  guildId: text("guild_id").references(() => guilds.id),
-  name: text("name"),
-  type: text("type"),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-  namesSyncedAt: text("names_synced_at"),          // NOVÉ
+export const channels = sqliteTable('channels', {
+  id: text('id').primaryKey(),
+  guildId: text('guild_id').references(() => guilds.id),
+  name: text('name'),
+  type: text('type'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  namesSyncedAt: text('names_synced_at') // NOVÉ
 });
 
-export const users = sqliteTable("users", {
-  id: text("id").primaryKey(),
-  username: text("username"),
-  displayName: text("display_name"),
-  firstSeenAt: text("first_seen_at"),               // ZMĚNA: notNull -> nullable (pre-seed jmen před 1. zprávou)
-  lastSeenAt: text("last_seen_at"),                 // ZMĚNA: notNull -> nullable
-  messageCount: integer("message_count").notNull().default(0),
-  namesSyncedAt: text("names_synced_at"),           // NOVÉ
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(),
+  username: text('username'),
+  displayName: text('display_name'),
+  firstSeenAt: text('first_seen_at'), // ZMĚNA: notNull -> nullable (pre-seed jmen před 1. zprávou)
+  lastSeenAt: text('last_seen_at'), // ZMĚNA: notNull -> nullable
+  messageCount: integer('message_count').notNull().default(0),
+  namesSyncedAt: text('names_synced_at') // NOVÉ
 });
 ```
 
@@ -115,17 +115,37 @@ export const users = sqliteTable("users", {
 interface DictionarySyncRequest {
   guild?: { id: string; name?: string | null };
   channels?: { id: string; name?: string | null; type?: string | null }[];
-  users?: { id: string; username?: string | null; display_name?: string | null }[];
+  users?: {
+    id: string;
+    username?: string | null;
+    display_name?: string | null;
+  }[];
 }
 
 interface DictionarySyncResult {
-  guild: { updated: number };                                   // 0 | 1
-  channels: { received: number; created: number; updated: number; unchanged: number };
-  users: { received: number; created: number; updated: number; unchanged: number };
-  changedIds: { guildId: string | null; channelIds: string[]; userIds: string[] };
+  guild: { updated: number }; // 0 | 1
+  channels: {
+    received: number;
+    created: number;
+    updated: number;
+    unchanged: number;
+  };
+  users: {
+    received: number;
+    created: number;
+    updated: number;
+    unchanged: number;
+  };
+  changedIds: {
+    guildId: string | null;
+    channelIds: string[];
+    userIds: string[];
+  };
 }
 
-export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult;
+export function syncDictionary(
+  req: DictionarySyncRequest
+): DictionarySyncResult;
 ```
 
 - Jedna transakce. Pro každý řádek `insert(...).onConflictDoUpdate(...)`; „změněno“ se pozná
@@ -141,7 +161,7 @@ export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult
 - `guilds`: `insert(...).onConflictDoNothing()` — jen skeleton `{ id, createdAt: now }`, žádné `name`.
 - `channels`: skeleton `{ id, guildId, type: null, createdAt, updatedAt }` na create;
   `onConflictDoUpdate` set **jen** `{ updatedAt: now }` (aktivita kanálu), žádné `name` / `type`.
-  *(Pokud `type` zůstane v batchi — viz otevřené otázky — tady se drží.)*
+  _(Pokud `type` zůstane v batchi — viz otevřené otázky — tady se drží.)_
 - `users`: create `{ id, firstSeenAt: now, lastSeenAt: now, messageCount: 0 }` bez jmen;
   `onConflictDoUpdate` set `{ lastSeenAt: greatest, firstSeenAt: least }`, žádné `username` / `display_name`.
 - Přepočet `messageCount` beze změny.
@@ -219,7 +239,7 @@ z `guilds` / `channels` / `users` a přes `name_sync` job je nasype do existují
   - `KNOWN_LABELS` += `"Guild"`; `nodeCaption` case `Guild` → `pick("name") ?? "(server)"`.
   - `MERGE_DISCUSSION_AND_CHANNEL` rozšířit: když `payload.channel.guildId`, přidat
     `MERGE (g:Guild {id: $channel.guildId}) ON CREATE SET g.name = $channel.guildName
-     ON MATCH SET g.name = coalesce($channel.guildName, g.name)` a `MERGE (c)-[:IN_GUILD]->(g)`.
+ ON MATCH SET g.name = coalesce($channel.guildName, g.name)` a `MERGE (c)-[:IN_GUILD]->(g)`.
   - `searchNodes` += větev `(n:Guild AND toLower(n.name) CONTAINS $q)`.
   - `graph_labels_fts` fulltext index rozšířit na `:Guild` (dobrovolné, kvůli
     dotazovacímu pipelinu Části 3).
@@ -242,7 +262,9 @@ interface DictionaryNames {
 interface GraphStore {
   // ...
   /** Aktualizuje name-property na EXISTUJÍCÍCH uzlech (MATCH ... SET). Vrací počet dotčených uzlů. */
-  syncDictionaryNames(names: DictionaryNames): Promise<{ updatedNodes: number }>;
+  syncDictionaryNames(
+    names: DictionaryNames
+  ): Promise<{ updatedNodes: number }>;
 }
 ```
 
@@ -253,10 +275,12 @@ UNWIND $users AS u
   MATCH (n:User {id: u.id})
   SET n.username = u.username, n.display_name = u.displayName
 ```
+
 ```cypher
 UNWIND $channels AS ch
   MATCH (n:Channel {id: ch.id}) SET n.name = ch.name
 ```
+
 ```cypher
 WITH $guild AS g WHERE g IS NOT NULL
   MATCH (n:Guild {id: g.id}) SET n.name = g.name
@@ -347,7 +371,7 @@ otestovatelným stavem.
   graf srovnán; přejmenování za běhu → graf v UI se překreslí bez reloadu.
 - **D5 — Zpevnění + dokumentace.** README (sekce Slovník jmen, `[dictionary]` klíče, `curl`
   příklady, breaking change), integrační test `dictionary → batches(jen ID) → clusterize →
-  enrich → graph-write → dictionary(rename) → assert Neo4j caption`, poznámka o pořadí
+enrich → graph-write → dictionary(rename) → assert Neo4j caption`, poznámka o pořadí
   (sync × batch je zaměnitelné, oboje upsert podle ID).
 
 ## Verifikace

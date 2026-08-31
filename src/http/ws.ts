@@ -1,4 +1,4 @@
-import { createBunWebSocket } from "hono/bun";
+import { createBunWebSocket } from 'hono/bun';
 
 /**
  * Shared Bun WebSocket helper for Hono. `upgradeWebSocket` wraps a route handler;

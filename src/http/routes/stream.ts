@@ -1,8 +1,8 @@
-import { Hono } from "hono";
-import { config } from "../../config/config";
-import { bus } from "../../core/events/bus";
-import { computeStatsTick } from "../../db/sqlite/repositories/statsRepository";
-import { upgradeWebSocket } from "../ws";
+import { Hono } from 'hono';
+import { config } from '../../config/config';
+import { bus } from '../../core/events/bus';
+import { computeStatsTick } from '../../db/sqlite/repositories/statsRepository';
+import { upgradeWebSocket } from '../ws';
 
 // stats.tick is only computed while at least one client is listening (see WEBAPP.md open Q3).
 let clientCount = 0;
@@ -10,9 +10,11 @@ let tickTimer: ReturnType<typeof setInterval> | null = null;
 
 function emitTick(): void {
   try {
-    bus.emit("stats.tick", computeStatsTick());
+    bus.emit('stats.tick', computeStatsTick());
   } catch (err) {
-    console.error(`[stats.tick] failed: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(
+      `[stats.tick] failed: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 
@@ -35,7 +37,7 @@ export const streamRoute = new Hono();
 
 // Auth is handled upstream by apiKeyAuth (it accepts ?token= for this route).
 streamRoute.get(
-  "/stream",
+  '/stream',
   upgradeWebSocket(() => {
     let unsubscribe: (() => void) | undefined;
     return {
@@ -50,7 +52,9 @@ streamRoute.get(
         clientConnected();
         // give the fresh client an immediate snapshot instead of waiting a full tick
         try {
-          ws.send(JSON.stringify({ event: "stats.tick", data: computeStatsTick() }));
+          ws.send(
+            JSON.stringify({ event: 'stats.tick', data: computeStatsTick() })
+          );
         } catch {
           /* ignore */
         }
@@ -58,7 +62,7 @@ streamRoute.get(
       onClose() {
         unsubscribe?.();
         clientDisconnected();
-      },
+      }
     };
-  }),
+  })
 );

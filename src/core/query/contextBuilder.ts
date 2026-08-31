@@ -1,6 +1,11 @@
-import type { GraphStore } from "../ports/GraphStore";
-import type { Config } from "../../config/config";
-import type { Candidate, DiscussionCore, EvidenceItem, RawMessage } from "./types";
+import type { GraphStore } from '../ports/GraphStore';
+import type { Config } from '../../config/config';
+import type {
+  Candidate,
+  DiscussionCore,
+  EvidenceItem,
+  RawMessage
+} from './types';
 
 export interface EnrichmentBits {
   keyPoints: string[];
@@ -16,7 +21,10 @@ export interface EnrichmentBits {
  */
 export interface SqliteContextSource {
   getEnrichmentBits(ids: string[]): Map<string, EnrichmentBits>;
-  getDiscussionMessagesForQuery(discussionId: string, limit: number): RawMessage[];
+  getDiscussionMessagesForQuery(
+    discussionId: string,
+    limit: number
+  ): RawMessage[];
 }
 
 const MSG_MAX_CHARS = 400;
@@ -27,20 +35,22 @@ function estimateTokens(text: string): number {
 }
 
 function resolvedLabel(v: boolean | null): string {
-  if (v === true) return "ano";
-  if (v === false) return "ne";
-  return "–";
+  if (v === true) return 'ano';
+  if (v === false) return 'ne';
+  return '–';
 }
 
 function oneLine(s: string): string {
-  const collapsed = s.replace(/\s+/g, " ").trim();
-  return collapsed.length > MSG_MAX_CHARS ? `${collapsed.slice(0, MSG_MAX_CHARS)}…` : collapsed;
+  const collapsed = s.replace(/\s+/g, ' ').trim();
+  return collapsed.length > MSG_MAX_CHARS
+    ? `${collapsed.slice(0, MSG_MAX_CHARS)}…`
+    : collapsed;
 }
 
 function renderBlock(item: EvidenceItem, includeRaw: boolean): string {
   const c = item.candidate;
   const core = item.core;
-  const title = core?.title ?? c.title ?? "(bez názvu)";
+  const title = core?.title ?? c.title ?? '(bez názvu)';
   const channel = core?.channelName ?? null;
   const summary = core?.summary ?? item.summary ?? c.summary ?? null;
   const topics = core?.topics ?? [];
@@ -50,25 +60,28 @@ function renderBlock(item: EvidenceItem, includeRaw: boolean): string {
   const lines: string[] = [];
   lines.push(`[${item.ref}] "${title}"`);
   lines.push(
-    `kanál: ${channel ? `#${channel}` : "?"} · začátek: ${core?.startedAt ?? c.startedAt ?? "?"} · typ: ${
-      core?.discussionType ?? c.discussionType ?? "?"
-    } · sentiment: ${core?.sentiment ?? c.sentiment ?? "?"} · vyřešeno: ${resolvedLabel(core?.resolved ?? c.resolved)}`,
+    `kanál: ${channel ? `#${channel}` : '?'} · začátek: ${core?.startedAt ?? c.startedAt ?? '?'} · typ: ${
+      core?.discussionType ?? c.discussionType ?? '?'
+    } · sentiment: ${core?.sentiment ?? c.sentiment ?? '?'} · vyřešeno: ${resolvedLabel(core?.resolved ?? c.resolved)}`
   );
   if (participants.length > 0) {
-    lines.push(`účastníci: ${participants.map((p) => `${p.name}${p.messageCount ? ` (${p.messageCount})` : ""}`).join(", ")}`);
+    lines.push(
+      `účastníci: ${participants.map((p) => `${p.name}${p.messageCount ? ` (${p.messageCount})` : ''}`).join(', ')}`
+    );
   }
   if (summary) lines.push(`shrnutí: ${summary}`);
   if (item.keyPoints.length > 0) {
-    lines.push("klíčové body:");
+    lines.push('klíčové body:');
     for (const kp of item.keyPoints) lines.push(`- ${kp}`);
   }
-  if (topics.length > 0) lines.push(`témata: ${topics.join(", ")}`);
-  if (entities.length > 0) lines.push(`entity: ${entities.join(", ")}`);
+  if (topics.length > 0) lines.push(`témata: ${topics.join(', ')}`);
+  if (entities.length > 0) lines.push(`entity: ${entities.join(', ')}`);
   if (includeRaw && item.rawMessages.length > 0) {
-    lines.push("ukázky zpráv:");
-    for (const m of item.rawMessages) lines.push(`  [${m.createdAt}] ${m.authorLabel}: ${oneLine(m.content)}`);
+    lines.push('ukázky zpráv:');
+    for (const m of item.rawMessages)
+      lines.push(`  [${m.createdAt}] ${m.authorLabel}: ${oneLine(m.content)}`);
   }
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 export interface BuiltContext {
@@ -85,7 +98,7 @@ export interface BuiltContext {
 export async function buildContext(
   evidence: Candidate[],
   deps: { graph: GraphStore; sqlite: SqliteContextSource },
-  cfg: Config["query"],
+  cfg: Config['query']
 ): Promise<BuiltContext> {
   const { sqlite } = deps;
   const ids = evidence.map((c) => c.id);
@@ -101,7 +114,7 @@ export async function buildContext(
       core: coreById.get(candidate.id) ?? null,
       summary: bits?.summary ?? null,
       keyPoints: bits?.keyPoints ?? [],
-      rawMessages: [],
+      rawMessages: []
     };
   });
 
@@ -109,7 +122,11 @@ export async function buildContext(
   const rawCount = Math.min(cfg.raw_message_discussions, items.length);
   for (let i = 0; i < rawCount; i++) {
     const item = items[i];
-    if (item) item.rawMessages = sqlite.getDiscussionMessagesForQuery(item.candidate.id, cfg.raw_messages_per_discussion);
+    if (item)
+      item.rawMessages = sqlite.getDiscussionMessagesForQuery(
+        item.candidate.id,
+        cfg.raw_messages_per_discussion
+      );
   }
 
   const blocks: string[] = [];
@@ -134,5 +151,5 @@ export async function buildContext(
     included.push(item);
   }
 
-  return { contextText: blocks.join("\n\n"), items: included };
+  return { contextText: blocks.join('\n\n'), items: included };
 }

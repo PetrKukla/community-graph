@@ -14,10 +14,17 @@ export interface DiscussionEnrichment {
   topics: string[];
   entities: { name: string; type: string }[];
   keyPoints: string[];
-  sentiment: "positive" | "neutral" | "negative" | "mixed";
+  sentiment: 'positive' | 'neutral' | 'negative' | 'mixed';
   sentimentScore: number;
   language: string;
-  discussionType: "question" | "help-request" | "discussion" | "announcement" | "off-topic" | "banter" | "other";
+  discussionType:
+    | 'question'
+    | 'help-request'
+    | 'discussion'
+    | 'announcement'
+    | 'off-topic'
+    | 'banter'
+    | 'other';
   resolved: boolean | null;
 }
 
@@ -31,8 +38,12 @@ export interface DiscussionEnrichment {
  *   chronologically nearest segment so nothing is dropped).
  */
 export type EnrichmentOutcome =
-  | { kind: "single"; enrichment: DiscussionEnrichment; embedding: Float32Array | null }
-  | { kind: "split"; segments: EnrichmentSegment[] };
+  | {
+      kind: 'single';
+      enrichment: DiscussionEnrichment;
+      embedding: Float32Array | null;
+    }
+  | { kind: 'split'; segments: EnrichmentSegment[] };
 
 export interface EnrichmentSegment {
   messageIds: string[];

@@ -5,6 +5,7 @@
 Samostatná fáze **navazující na M6** z [`PLAN.md`](../PLAN.md) — staví na hotové, ručně ověřené pipeline a stabilním HTTP API. Nemění chování fáze 1: přidává jen **read-only** pohled na to, co se v systému děje, plus instrumentaci (persistované LLM volání, in-process event bus). Žádný krok pipeline se z UI ve v1 nespouští.
 
 **Závislosti:**
+
 - HTTP API a `apiKeyAuth` middleware (M1–M4)
 - job systém + `jobRunner` (M2+)
 - naplněné Neo4j (M4) — bez něj funguje vše kromě grafového pohledu
@@ -28,20 +29,20 @@ Vše se aktualizuje **realtime přes WebSocket**. Stack drží „maximum muziky
 
 ## Tech stack
 
-| Oblast | Volba | Proč |
-|---|---|---|
-| Jazyk | **TypeScript** všude — `<script lang="ts">` v každé komponentě, sdílená logika v `.ts` / `.svelte.ts`, `vite.config.ts` | Stejný jazyk i typy jako backend; tvary API odpovědí a WS eventů se sdílejí/zrcadlí z `src/`, ne opisují. |
-| Framework | **Svelte 5** (runes) + **Vite**, čistá SPA (žádný SvelteKit) | Pro tak malý RO náhled je SvelteKit (routing, SSR, adaptery, vlastní `package.json`) zbytečná váha. Vite SPA = jeden `index.html`, jeden bundle, klientský routing. Runy dělají realtime stav čitelný. **Výhradně Svelte 5 idiom, ne Svelte 4** — viz níže. |
-| Umístění v repu | adresář `web/` **uvnitř projektu `community-graph`**, žádné druhé `package.json` | Není to monorepo ani samostatný balík — je to jen část služby. Frontend devDeps jdou do kořenového `package.json`, build řídí jeden `vite build`. |
-| Build/servírování | `vite build` → `web/dist/` (statické `index.html` + JS/CSS), servíruje **stávající Hono app** přes `serveStatic` s SPA fallbackem | Žádné SSR, žádný build adapter. Jeden origin, jeden proces, jeden kontejner, žádné CORS v produkci. |
-| Klientský routing | malý hash/history router (`svelte-spa-router`, ~1 KB) nebo pár `{#if}` větví | Šest pohledů, nic víc není potřeba. |
-| Server state | **TanStack Query** (`@tanstack/svelte-query`) | Cache, background refetch, dedup, retry. WS události jen volají `setQueryData`/`invalidateQueries`. Polling jako fallback při výpadku WS. |
-| Realtime | Nativní `WebSocket` klient + malý reconnect store; server přes `Bun.serve` websocket | Bez Socket.IO. Server má in-process `EventEmitter` bus, WS handler jen forwarduje. |
-| Komponentová knihovna | **shadcn-svelte** — přes `components.json` + CLI (`bunx shadcn-svelte@latest add …`), komponenty se kopírují do `web/lib/components/ui/` | Zdroják vlastníme, styl se ladí přímo v komponentě, žádný runtime lock-in. Používané: `card`, `badge`, `table`, `tabs`, `dialog`, `sheet`, `button`, `skeleton`, `tooltip`, `dropdown-menu`. Funguje i mimo SvelteKit (Vite + Svelte). |
-| Styling | **TailwindCSS v4** (`@import "tailwindcss"` + `@theme` tokeny — paleta, radii, font — v `app.css`; Vite plugin `@tailwindcss/vite`) | Veškeré stylování přes utility třídy přímo v markupu. Žádné velké `<style>` bloky, žádný ručně psaný CSS soubor mimo `app.css`. Rychlé, konzistentní, lehké. |
-| Grafy | **LayerChart** (Svelte-native, nad d3) pro bar/line/funnel; `uPlot` pokud bude časová řada LLM časů velká | Svelte-native, malé, animovatelné, žádný React-wrapper balast. |
-| Graf viz | **graphology** + **sigma.js v3** (WebGL), layout `graphology-layout-forceatlas2` ve `Worker` | Zvládne velký graf, WebGL render, plynulé animace kamery i uzlů. Force layout běží mimo hlavní vlákno. |
-| Ikony | `@tabler/icons-svelte` | Neutrální, konzistentní, široká sada. |
+| Oblast                | Volba                                                                                                                                    | Proč                                                                                                                                                                                                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Jazyk                 | **TypeScript** všude — `<script lang="ts">` v každé komponentě, sdílená logika v `.ts` / `.svelte.ts`, `vite.config.ts`                  | Stejný jazyk i typy jako backend; tvary API odpovědí a WS eventů se sdílejí/zrcadlí z `src/`, ne opisují.                                                                                                                                                   |
+| Framework             | **Svelte 5** (runes) + **Vite**, čistá SPA (žádný SvelteKit)                                                                             | Pro tak malý RO náhled je SvelteKit (routing, SSR, adaptery, vlastní `package.json`) zbytečná váha. Vite SPA = jeden `index.html`, jeden bundle, klientský routing. Runy dělají realtime stav čitelný. **Výhradně Svelte 5 idiom, ne Svelte 4** — viz níže. |
+| Umístění v repu       | adresář `web/` **uvnitř projektu `community-graph`**, žádné druhé `package.json`                                                         | Není to monorepo ani samostatný balík — je to jen část služby. Frontend devDeps jdou do kořenového `package.json`, build řídí jeden `vite build`.                                                                                                           |
+| Build/servírování     | `vite build` → `web/dist/` (statické `index.html` + JS/CSS), servíruje **stávající Hono app** přes `serveStatic` s SPA fallbackem        | Žádné SSR, žádný build adapter. Jeden origin, jeden proces, jeden kontejner, žádné CORS v produkci.                                                                                                                                                         |
+| Klientský routing     | malý hash/history router (`svelte-spa-router`, ~1 KB) nebo pár `{#if}` větví                                                             | Šest pohledů, nic víc není potřeba.                                                                                                                                                                                                                         |
+| Server state          | **TanStack Query** (`@tanstack/svelte-query`)                                                                                            | Cache, background refetch, dedup, retry. WS události jen volají `setQueryData`/`invalidateQueries`. Polling jako fallback při výpadku WS.                                                                                                                   |
+| Realtime              | Nativní `WebSocket` klient + malý reconnect store; server přes `Bun.serve` websocket                                                     | Bez Socket.IO. Server má in-process `EventEmitter` bus, WS handler jen forwarduje.                                                                                                                                                                          |
+| Komponentová knihovna | **shadcn-svelte** — přes `components.json` + CLI (`bunx shadcn-svelte@latest add …`), komponenty se kopírují do `web/lib/components/ui/` | Zdroják vlastníme, styl se ladí přímo v komponentě, žádný runtime lock-in. Používané: `card`, `badge`, `table`, `tabs`, `dialog`, `sheet`, `button`, `skeleton`, `tooltip`, `dropdown-menu`. Funguje i mimo SvelteKit (Vite + Svelte).                      |
+| Styling               | **TailwindCSS v4** (`@import "tailwindcss"` + `@theme` tokeny — paleta, radii, font — v `app.css`; Vite plugin `@tailwindcss/vite`)      | Veškeré stylování přes utility třídy přímo v markupu. Žádné velké `<style>` bloky, žádný ručně psaný CSS soubor mimo `app.css`. Rychlé, konzistentní, lehké.                                                                                                |
+| Grafy                 | **LayerChart** (Svelte-native, nad d3) pro bar/line/funnel; `uPlot` pokud bude časová řada LLM časů velká                                | Svelte-native, malé, animovatelné, žádný React-wrapper balast.                                                                                                                                                                                              |
+| Graf viz              | **graphology** + **sigma.js v3** (WebGL), layout `graphology-layout-forceatlas2` ve `Worker`                                             | Zvládne velký graf, WebGL render, plynulé animace kamery i uzlů. Force layout běží mimo hlavní vlákno.                                                                                                                                                      |
+| Ikony                 | `@tabler/icons-svelte`                                                                                                                   | Neutrální, konzistentní, široká sada.                                                                                                                                                                                                                       |
 
 ### Skills při implementaci
 
@@ -70,13 +71,13 @@ LLM sink ─────┘                                                     
 
 **Události na busu (typované):**
 
-| Event | Kdy | Payload |
-|---|---|---|
-| `job.created` | nový job zařazen | `{ id, type, channel_id, created_at }` |
-| `job.updated` | změna stavu/progressu/výsledku | `{ id, status, progress, result?, error?, updated_at }` |
-| `llm.call` | dokončené (i chybové) LLM volání | `{ id, provider, model, context, duration_ms, status, prompt_tokens?, completion_tokens?, channel_id?, job_id?, at }` |
-| `ingest.batch` | přijatý batch | `{ batch_id, channel_id, message_count, inserted_count, duplicate_count, at }` |
-| `stats.tick` | throttlovaný přepočet agregátů (max 1×/2 s) | `{ funnel, totals }` — jen to, co je levné spočítat |
+| Event          | Kdy                                         | Payload                                                                                                               |
+| -------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `job.created`  | nový job zařazen                            | `{ id, type, channel_id, created_at }`                                                                                |
+| `job.updated`  | změna stavu/progressu/výsledku              | `{ id, status, progress, result?, error?, updated_at }`                                                               |
+| `llm.call`     | dokončené (i chybové) LLM volání            | `{ id, provider, model, context, duration_ms, status, prompt_tokens?, completion_tokens?, channel_id?, job_id?, at }` |
+| `ingest.batch` | přijatý batch                               | `{ batch_id, channel_id, message_count, inserted_count, duplicate_count, at }`                                        |
+| `stats.tick`   | throttlovaný přepočet agregátů (max 1×/2 s) | `{ funnel, totals }` — jen to, co je levné spočítat                                                                   |
 
 **Klient:** jedno WS spojení, reconnect s exponenciálním backoffem (max ~15 s), při reconnectu `queryClient.invalidateQueries()` pro dorovnání zmeškaného. Každý event má tenký handler, který cíleně upraví relevantní query klíč — žádný globální store, žádné ruční slévání stavu.
 
@@ -118,25 +119,25 @@ GET  /api/v1/graph/search?q=                          # fulltext přes Topic.nam
 
 ```typescript
 export const llmCalls = sqliteTable(
-  "llm_calls",
+  'llm_calls',
   {
-    id: text("id").primaryKey(),                       // uuid
-    provider: text("provider").notNull(),              // anthropic|openai-compatible|gemini
-    model: text("model").notNull(),
-    context: text("context"),                          // request.context label (např. "enrich discussion abc")
-    channelId: text("channel_id"),
-    jobId: text("job_id"),
-    startedAt: text("started_at").notNull(),
-    durationMs: integer("duration_ms").notNull(),
-    status: text("status").notNull(),                  // ok|error
-    promptTokens: integer("prompt_tokens"),
-    completionTokens: integer("completion_tokens"),
-    error: text("error"),
+    id: text('id').primaryKey(), // uuid
+    provider: text('provider').notNull(), // anthropic|openai-compatible|gemini
+    model: text('model').notNull(),
+    context: text('context'), // request.context label (např. "enrich discussion abc")
+    channelId: text('channel_id'),
+    jobId: text('job_id'),
+    startedAt: text('started_at').notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    status: text('status').notNull(), // ok|error
+    promptTokens: integer('prompt_tokens'),
+    completionTokens: integer('completion_tokens'),
+    error: text('error')
   },
   (table) => [
-    index("idx_llm_calls_started").on(table.startedAt),
-    index("idx_llm_calls_model").on(table.model),
-  ],
+    index('idx_llm_calls_started').on(table.startedAt),
+    index('idx_llm_calls_model').on(table.model)
+  ]
 );
 ```
 

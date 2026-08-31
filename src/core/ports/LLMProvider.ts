@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import type { z } from 'zod';
 
 export interface LLMStructuredRequest<T> {
   /** System / instruction prompt - stable across a run, safe to cache. */
@@ -33,5 +33,7 @@ export interface LLMStructuredResult<T> {
  * never on a concrete vendor SDK. Implementations live in src/adapters/llm/.
  */
 export interface LLMProvider {
-  generateStructured<T>(request: LLMStructuredRequest<T>): Promise<LLMStructuredResult<T>>;
+  generateStructured<T>(
+    request: LLMStructuredRequest<T>
+  ): Promise<LLMStructuredResult<T>>;
 }

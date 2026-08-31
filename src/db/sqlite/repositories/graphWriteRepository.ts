@@ -1,7 +1,14 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
-import { db } from "../client";
-import { channels, guilds, messages, users, discussionsLocal, discussionEnrichment } from "../schema";
-import type { DiscussionWriteInput } from "../../../core/graphBuilder/discussionWriter";
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { db } from '../client';
+import {
+  channels,
+  guilds,
+  messages,
+  users,
+  discussionsLocal,
+  discussionEnrichment
+} from '../schema';
+import type { DiscussionWriteInput } from '../../../core/graphBuilder/discussionWriter';
 
 export interface WritableDiscussionRow {
   id: string;
@@ -13,7 +20,9 @@ export interface WritableDiscussionRow {
 }
 
 /** Discussions ready for graph write: enriched and not yet written. Split parents are excluded (status 'split'). */
-export function getWritableDiscussions(channelId: string): WritableDiscussionRow[] {
+export function getWritableDiscussions(
+  channelId: string
+): WritableDiscussionRow[] {
   return db
     .select({
       id: discussionsLocal.id,
@@ -21,21 +30,37 @@ export function getWritableDiscussions(channelId: string): WritableDiscussionRow
       blockStartAt: discussionsLocal.blockStartAt,
       blockEndAt: discussionsLocal.blockEndAt,
       continuationOfDiscussionId: discussionsLocal.continuationOfDiscussionId,
-      continuationReason: discussionsLocal.continuationReason,
+      continuationReason: discussionsLocal.continuationReason
     })
     .from(discussionsLocal)
-    .where(and(eq(discussionsLocal.channelId, channelId), eq(discussionsLocal.status, "enriched")))
+    .where(
+      and(
+        eq(discussionsLocal.channelId, channelId),
+        eq(discussionsLocal.status, 'enriched')
+      )
+    )
     .orderBy(discussionsLocal.blockStartAt)
     .all();
 }
 
 function toFloat32(buf: Buffer | null): Float32Array | null {
-  if (!buf || buf.byteLength === 0 || buf.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) return null;
-  return new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / Float32Array.BYTES_PER_ELEMENT);
+  if (
+    !buf ||
+    buf.byteLength === 0 ||
+    buf.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0
+  )
+    return null;
+  return new Float32Array(
+    buf.buffer,
+    buf.byteOffset,
+    buf.byteLength / Float32Array.BYTES_PER_ELEMENT
+  );
 }
 
 /** Assembles everything the graph payload builder needs for one discussion, or null if it has no enrichment row. */
-export function loadDiscussionWriteInput(row: WritableDiscussionRow): DiscussionWriteInput | null {
+export function loadDiscussionWriteInput(
+  row: WritableDiscussionRow
+): DiscussionWriteInput | null {
   const enrichment = db
     .select()
     .from(discussionEnrichment)
@@ -50,7 +75,11 @@ export function loadDiscussionWriteInput(row: WritableDiscussionRow): Discussion
     .get() ?? { id: row.channelId, name: null, guildId: null };
 
   const guildName = channelRow.guildId
-    ? (db.select({ name: guilds.name }).from(guilds).where(eq(guilds.id, channelRow.guildId)).get()?.name ?? null)
+    ? (db
+        .select({ name: guilds.name })
+        .from(guilds)
+        .where(eq(guilds.id, channelRow.guildId))
+        .get()?.name ?? null)
     : null;
   const channel = { ...channelRow, guildName };
 
@@ -59,7 +88,7 @@ export function loadDiscussionWriteInput(row: WritableDiscussionRow): Discussion
       authorId: messages.authorId,
       messageCount: sql<number>`count(*)`,
       firstMessageAt: sql<string>`min(${messages.createdAt})`,
-      lastMessageAt: sql<string>`max(${messages.createdAt})`,
+      lastMessageAt: sql<string>`max(${messages.createdAt})`
     })
     .from(messages)
     .where(eq(messages.discussionId, row.id))
@@ -68,7 +97,9 @@ export function loadDiscussionWriteInput(row: WritableDiscussionRow): Discussion
 
   const authorIds = participantAgg.map((p) => p.authorId);
   const userRows =
-    authorIds.length > 0 ? db.select().from(users).where(inArray(users.id, authorIds)).all() : [];
+    authorIds.length > 0
+      ? db.select().from(users).where(inArray(users.id, authorIds)).all()
+      : [];
   const userById = new Map(userRows.map((u) => [u.id, u]));
 
   const participants = participantAgg.map((p) => {
@@ -82,7 +113,7 @@ export function loadDiscussionWriteInput(row: WritableDiscussionRow): Discussion
       userMessageCount: u?.messageCount ?? p.messageCount,
       messageCount: p.messageCount,
       firstMessageAt: p.firstMessageAt,
-      lastMessageAt: p.lastMessageAt,
+      lastMessageAt: p.lastMessageAt
     };
   });
 
@@ -93,7 +124,7 @@ export function loadDiscussionWriteInput(row: WritableDiscussionRow): Discussion
       blockStartAt: row.blockStartAt,
       blockEndAt: row.blockEndAt,
       continuationOfDiscussionId: row.continuationOfDiscussionId,
-      continuationReason: row.continuationReason,
+      continuationReason: row.continuationReason
     },
     enrichment: {
       title: enrichment.title,
@@ -105,17 +136,23 @@ export function loadDiscussionWriteInput(row: WritableDiscussionRow): Discussion
       language: enrichment.language,
       discussionType: enrichment.discussionType,
       resolved: enrichment.resolved,
-      embedding: toFloat32(enrichment.embedding),
+      embedding: toFloat32(enrichment.embedding)
     },
     channel,
-    participants,
+    participants
   };
 }
 
 /** Marks a discussion as written into the graph and its messages fully processed. */
 export function markDiscussionWritten(discussionId: string): void {
   db.transaction((tx) => {
-    tx.update(discussionsLocal).set({ status: "written" }).where(eq(discussionsLocal.id, discussionId)).run();
-    tx.update(messages).set({ processed: 3 }).where(eq(messages.discussionId, discussionId)).run();
+    tx.update(discussionsLocal)
+      .set({ status: 'written' })
+      .where(eq(discussionsLocal.id, discussionId))
+      .run();
+    tx.update(messages)
+      .set({ processed: 3 })
+      .where(eq(messages.discussionId, discussionId))
+      .run();
   });
 }

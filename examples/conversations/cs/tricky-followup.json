@@ -2,10 +2,32 @@
   "guild": { "id": "g-tricky", "name": "Testovací komunita" },
   "channel": { "id": "c-obecna", "name": "obecna", "type": "text" },
   "messages": [
-    { "id": "c4", "author": { "id": "u-jana", "username": "jana" }, "content": "Díky všem, kupujeme tedy Děti času.", "created_at": "2026-08-21T11:00:00.000Z", "thread_id": "th-bookclub" },
+    {
+      "id": "c4",
+      "author": { "id": "u-jana", "username": "jana" },
+      "content": "Díky všem, kupujeme tedy Děti času.",
+      "created_at": "2026-08-21T11:00:00.000Z",
+      "thread_id": "th-bookclub"
+    },
 
-    { "id": "sentinel1", "author": { "id": "u-david", "username": "david" }, "content": "Za chvíli jsem zpátky", "created_at": "2026-08-21T10:50:00.000Z" },
-    { "id": "e1", "author": { "id": "u-tomas", "username": "tomas" }, "content": "Úplně souhlasím, ten zápas byl vážně dramatický.", "created_at": "2026-08-21T10:55:00.000Z", "reply_to_message_id": "f2" },
-    { "id": "z1", "author": { "id": "u-eva", "username": "eva" }, "content": "Tak to je pro dnešek asi všechno, mějte se.", "created_at": "2026-08-21T11:35:00.000Z" }
+    {
+      "id": "sentinel1",
+      "author": { "id": "u-david", "username": "david" },
+      "content": "Za chvíli jsem zpátky",
+      "created_at": "2026-08-21T10:50:00.000Z"
+    },
+    {
+      "id": "e1",
+      "author": { "id": "u-tomas", "username": "tomas" },
+      "content": "Úplně souhlasím, ten zápas byl vážně dramatický.",
+      "created_at": "2026-08-21T10:55:00.000Z",
+      "reply_to_message_id": "f2"
+    },
+    {
+      "id": "z1",
+      "author": { "id": "u-eva", "username": "eva" },
+      "content": "Tak to je pro dnešek asi všechno, mějte se.",
+      "created_at": "2026-08-21T11:35:00.000Z"
+    }
   ]
 }

@@ -1,5 +1,5 @@
-import type { EmbeddingProvider } from "../../core/ports/EmbeddingProvider";
-import { LocalTransformersEmbeddingAdapter } from "./LocalTransformersEmbeddingAdapter";
+import type { EmbeddingProvider } from '../../core/ports/EmbeddingProvider';
+import { LocalTransformersEmbeddingAdapter } from './LocalTransformersEmbeddingAdapter';
 
 let cached: EmbeddingProvider | null = null;
 

@@ -1,23 +1,35 @@
-import type { Config } from "../../config/config";
-import { recencyBoost } from "./scoring";
-import type { QueryPlan } from "./schemas";
-import type { Candidate, WorkingCandidate } from "./types";
+import type { Config } from '../../config/config';
+import { recencyBoost } from './scoring';
+import type { QueryPlan } from './schemas';
+import type { Candidate, WorkingCandidate } from './types';
 
 /**
  * Soft nudges only - none of these can drop a candidate, they just reorder. The planner's
  * `preferred_discussion_types` lands here (never in a WHERE clause) so a mislabelled discussion
  * type can't hide the right answer.
  */
-function preferenceBoost(plan: QueryPlan, c: WorkingCandidate, cfg: Config["query"]): number {
+function preferenceBoost(
+  plan: QueryPlan,
+  c: WorkingCandidate,
+  cfg: Config['query']
+): number {
   let b = 0;
-  if (c.discussionType && (plan.preferred_discussion_types as string[]).includes(c.discussionType)) {
+  if (
+    c.discussionType &&
+    (plan.preferred_discussion_types as string[]).includes(c.discussionType)
+  ) {
     b += cfg.weight_type_preference;
   }
-  if (plan.intent === "troubleshooting" && c.resolved === true) b += 0.05;
+  if (plan.intent === 'troubleshooting' && c.resolved === true) b += 0.05;
   return b;
 }
 
-function finalize(plan: QueryPlan, c: WorkingCandidate, cfg: Config["query"], now: number): Candidate {
+function finalize(
+  plan: QueryPlan,
+  c: WorkingCandidate,
+  cfg: Config['query'],
+  now: number
+): Candidate {
   const recency = recencyBoost(c.startedAt, cfg.recency_half_life_days, now);
   const pref = preferenceBoost(plan, c, cfg);
   const score =
@@ -42,7 +54,7 @@ function finalize(plan: QueryPlan, c: WorkingCandidate, cfg: Config["query"], no
     recencyBoost: recency,
     preferenceBoost: pref,
     score,
-    sources: [...c.sources],
+    sources: [...c.sources]
   };
 }
 
@@ -57,8 +69,8 @@ export interface RankResult {
 export function rankCandidates(
   candidates: Map<string, WorkingCandidate>,
   plan: QueryPlan,
-  cfg: Config["query"],
-  now: number = Date.now(),
+  cfg: Config['query'],
+  now: number = Date.now()
 ): RankResult {
   const ranked = [...candidates.values()]
     .map((c) => finalize(plan, c, cfg, now))
@@ -67,7 +79,11 @@ export function rankCandidates(
 
   let evidence = ranked.slice(0, cfg.evidence_set_size);
 
-  if (cfg.opinion_sentiment_diversity && plan.intent === "opinion" && ranked.length > evidence.length) {
+  if (
+    cfg.opinion_sentiment_diversity &&
+    plan.intent === 'opinion' &&
+    ranked.length > evidence.length
+  ) {
     evidence = enforceSentimentDiversity(evidence, ranked);
   }
 
@@ -79,12 +95,15 @@ export function rankCandidates(
  * best candidate of a missing sentiment for the weakest current pick. Bounded to 2 swaps and only
  * touches the tail so the top results stay put.
  */
-function enforceSentimentDiversity(evidence: Candidate[], ranked: Candidate[]): Candidate[] {
+function enforceSentimentDiversity(
+  evidence: Candidate[],
+  ranked: Candidate[]
+): Candidate[] {
   const out = [...evidence];
   const inSet = new Set(out.map((c) => c.id));
   let swaps = 0;
 
-  for (const want of ["negative", "positive"]) {
+  for (const want of ['negative', 'positive']) {
     if (swaps >= 2) break;
     if (out.some((c) => c.sentiment === want)) continue;
     const pick = ranked.find((c) => c.sentiment === want && !inSet.has(c.id));
