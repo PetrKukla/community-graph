@@ -92,13 +92,15 @@
 
   const emptyAnswer = $derived(shown != null && (shown.answer.confidence === "low" || shown.answer.citations.length === 0));
 
-  // intercept [D#] clicks inside the rendered answer -> scroll to the citation card
+  // a [D#] marker inside the answer opens that citation's detail drawer (and nudges its card into view)
   function onAnswerClick(e: MouseEvent): void {
     const target = (e.target as HTMLElement).closest<HTMLElement>("[data-cref]");
-    if (!target) return;
+    if (!target || !shown) return;
     e.preventDefault();
     const ref = target.dataset.cref;
     document.getElementById(ref ?? "")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const cite = shown.answer.citations.find((c) => c.ref === ref);
+    if (cite) drawerId = cite.discussion_id;
   }
 
   async function openInGraph(discussionId: string): Promise<void> {
@@ -118,7 +120,7 @@
 <div class="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
   <!-- left: input + filters + history -->
   <div class="flex flex-col gap-4">
-    <Card title="Zeptat se" description="Otázka v přirozeném jazyce nad znalostní bází komunity.">
+    <Card title="Zeptat se" description="Otázka nad znalostní bází komunity.">
       <div class="flex flex-col gap-3">
         <textarea
           bind:value={question}
