@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../client";
-import { channels, messages, users, discussionsLocal, discussionEnrichment } from "../schema";
+import { channels, guilds, messages, users, discussionsLocal, discussionEnrichment } from "../schema";
 import type { DiscussionWriteInput } from "../../../core/graphBuilder/discussionWriter";
 
 export interface WritableDiscussionRow {
@@ -43,11 +43,16 @@ export function loadDiscussionWriteInput(row: WritableDiscussionRow): Discussion
     .get();
   if (!enrichment) return null;
 
-  const channel = db
+  const channelRow = db
     .select({ id: channels.id, name: channels.name, guildId: channels.guildId })
     .from(channels)
     .where(eq(channels.id, row.channelId))
     .get() ?? { id: row.channelId, name: null, guildId: null };
+
+  const guildName = channelRow.guildId
+    ? (db.select({ name: guilds.name }).from(guilds).where(eq(guilds.id, channelRow.guildId)).get()?.name ?? null)
+    : null;
+  const channel = { ...channelRow, guildName };
 
   const participantAgg = db
     .select({

@@ -17,7 +17,7 @@ export interface DiscussionGraphPayload {
     resolved: boolean | null;
     embedding: number[] | null; // length must match the configured vector dimension, else omitted
   };
-  channel: { id: string; name: string | null; guildId: string | null };
+  channel: { id: string; name: string | null; guildId: string | null; guildName: string | null };
   participants: GraphParticipant[];
   topics: string[]; // canonical, de-duped
   entities: GraphEntity[]; // canonical, de-duped by key

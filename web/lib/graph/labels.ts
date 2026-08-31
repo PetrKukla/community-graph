@@ -1,4 +1,4 @@
-export const NODE_LABELS = ["Discussion", "Topic", "Entity", "User", "Channel"] as const;
+export const NODE_LABELS = ["Discussion", "Topic", "Entity", "User", "Channel", "Guild"] as const;
 export type NodeLabel = (typeof NODE_LABELS)[number];
 
 /** Concrete hex (WebGL can't use CSS vars) - the dataviz categorical hues. */
@@ -8,6 +8,7 @@ export const NODE_LABEL_COLOR: Record<string, string> = {
   Entity: "#eda100",
   User: "#e87ba4",
   Channel: "#4a3aa7",
+  Guild: "#8a5cf6",
 };
 
 export const NODE_LABEL_CS: Record<string, string> = {
@@ -16,6 +17,7 @@ export const NODE_LABEL_CS: Record<string, string> = {
   Entity: "entita",
   User: "uživatel",
   Channel: "kanál",
+  Guild: "server",
 };
 
 export function nodeColor(label: string): string {

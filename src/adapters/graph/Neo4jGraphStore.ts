@@ -18,7 +18,7 @@ import type {
 } from "../../core/query/types";
 import { getNeo4jDriver } from "./driver";
 
-const KNOWN_LABELS = ["Discussion", "Topic", "Entity", "User", "Channel"];
+const KNOWN_LABELS = ["Discussion", "Topic", "Entity", "User", "Channel", "Guild"];
 
 function primaryLabel(labels: readonly string[]): string {
   return labels.find((l) => KNOWN_LABELS.includes(l)) ?? labels[0] ?? "Node";
@@ -40,6 +40,8 @@ function nodeCaption(label: string, props: Record<string, unknown>): string {
       return pick("title", "summary") ?? "(diskuze bez názvu)";
     case "Channel":
       return pick("name") ?? "(kanál)";
+    case "Guild":
+      return pick("name") ?? "(server)";
     case "User":
       return pick("display_name", "username") ?? "(uživatel)";
     default:
@@ -69,12 +71,21 @@ const CONSTRAINTS = [
   "CREATE CONSTRAINT discussion_id IF NOT EXISTS FOR (d:Discussion) REQUIRE d.id IS UNIQUE",
   "CREATE CONSTRAINT topic_name IF NOT EXISTS FOR (t:Topic) REQUIRE t.name IS UNIQUE",
   "CREATE CONSTRAINT entity_key IF NOT EXISTS FOR (e:Entity) REQUIRE e.key IS UNIQUE",
+  "CREATE CONSTRAINT guild_id IF NOT EXISTS FOR (g:Guild) REQUIRE g.id IS UNIQUE",
 ];
 
 const MERGE_DISCUSSION_AND_CHANNEL = `
 MERGE (c:Channel {id: $channel.id})
   ON CREATE SET c.name = $channel.name, c.guild_id = $channel.guildId
   ON MATCH SET c.name = coalesce($channel.name, c.name), c.guild_id = coalesce($channel.guildId, c.guild_id)
+WITH c
+FOREACH (_ IN CASE WHEN $channel.guildId IS NULL THEN [] ELSE [1] END |
+  MERGE (g:Guild {id: $channel.guildId})
+    ON CREATE SET g.name = $channel.guildName
+    ON MATCH SET g.name = coalesce($channel.guildName, g.name)
+  MERGE (c)-[:IN_GUILD]->(g)
+)
+WITH c
 MERGE (d:Discussion {id: $d.id})
 SET d.channel_id = $d.channelId,
     d.started_at = $d.startedAt,
@@ -302,7 +313,7 @@ export class Neo4jGraphStore implements GraphStore {
       // Fulltext over label text - lexical anchoring for the query pipeline (Část 3).
       await session.run(
         `CREATE FULLTEXT INDEX graph_labels_fts IF NOT EXISTS
-         FOR (n:Topic|Entity|Discussion) ON EACH [n.name, n.title]`,
+         FOR (n:Topic|Entity|Discussion|Guild) ON EACH [n.name, n.title]`,
       );
       this.#bootstrapped = true;
     } finally {
@@ -436,6 +447,7 @@ export class Neo4jGraphStore implements GraphStore {
             OR (n:Entity AND toLower(n.name) CONTAINS $q)
             OR (n:Discussion AND n.title IS NOT NULL AND toLower(n.title) CONTAINS $q)
             OR (n:User AND n.username IS NOT NULL AND toLower(n.username) CONTAINS $q)
+            OR (n:Guild AND n.name IS NOT NULL AND toLower(n.name) CONTAINS $q)
          RETURN n LIMIT $limit`,
         { q, limit: neo4j.int(Math.max(1, Math.min(limit, 50))) },
       );

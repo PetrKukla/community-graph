@@ -22,7 +22,7 @@ export interface DiscussionWriteInput {
     resolved: boolean | null;
     embedding: Float32Array | null;
   };
-  channel: { id: string; name: string | null; guildId: string | null };
+  channel: { id: string; name: string | null; guildId: string | null; guildName: string | null };
   participants: {
     id: string;
     username: string | null;

@@ -263,6 +263,7 @@ po zápisu označí `written` a příště přeskočí — přispěje do nich pr
 |---|---|---|
 | `User` | `id` | `username`, `display_name`, `first_seen_at`, `last_seen_at`, `message_count` |
 | `Channel` | `id` | `name`, `guild_id` |
+| `Guild` | `id` | `name` — server; vzniká při `graph-write`, když má kanál `guild_id` (Část 4.1) |
 | `Discussion` | `id` | `channel_id`, `started_at`, `ended_at`, `message_count`, `participant_count`, `title`, `summary`, `topics[]`, `sentiment` (+ `_score`), `language`, `discussion_type`, `resolved`, `embedding` (index `discussion_embedding_idx`) |
 | `Topic` | `name` (kanonizované: trim, sražené mezery, dedup case-insensitive) | `discussion_count`, `created_at` |
 | `Entity` | `key` = `typ:název` | `name`, `type` (`person`/`product`/`technology`/`organization`/`place`/`event`/`other`), `mention_count`, `created_at` |
@@ -273,6 +274,7 @@ po zápisu označí `written` a příště přeskočí — přispěje do nich pr
 |---|---|---|
 | `(User)-[:PARTICIPATED_IN]->(Discussion)` | `message_count`, `first_message_at`, `last_message_at` | agregace nad `messages` diskuze |
 | `(Discussion)-[:OCCURRED_IN]->(Channel)` | — | |
+| `(Channel)-[:IN_GUILD]->(Guild)` | — | jen když má kanál `guild_id` |
 | `(Discussion)-[:DISCUSSES]->(Topic)` | — | |
 | `(Discussion)-[:MENTIONS]->(Entity)` | `count` | |
 | `(Topic)-[:COOCCURS_WITH]->(Topic)` | `count`, `last_seen_at` | v abecedním pořadí názvů (bez opačné duplicity); přeskočí se u diskuze s > 12 topiců |
