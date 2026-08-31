@@ -26,7 +26,7 @@ Vyžaduje [Bun](https://bun.com) (testováno na `1.3.x`).
 ```bash
 bun install
 cp .env.example .env                  # uprav aspoň API_KEY
-cp config.toml.example config.toml    # laditelné parametry (config.toml je gitignored)
+cp config.example.toml config.toml    # laditelné parametry (config.toml je gitignored)
 bun run dev                           # server s auto-reloadem (nebo `bun run start` bez watch)
 ```
 

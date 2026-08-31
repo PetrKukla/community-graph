@@ -7,7 +7,7 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
 FROM deps AS build
-COPY vite.config.ts config.toml.example ./
+COPY vite.config.ts config.example.toml ./
 COPY web ./web
 # vite.config.ts reads config.toml for the dev port only; it falls back to defaults if absent
 RUN bun run web:build
@@ -20,7 +20,7 @@ COPY package.json bun.lock drizzle.config.ts ./
 COPY src ./src
 COPY migrations ./migrations
 # baseline config; bind-mount or COPY a real config.toml to override, or use PORT/HOSTNAME in .env
-COPY config.toml.example ./config.toml
+COPY config.example.toml ./config.toml
 
 EXPOSE 3004
 CMD ["bun", "run", "src/index.ts"]
