@@ -82,7 +82,7 @@ export interface FullStats extends ReturnType<typeof computeStatsTick> {
   messages_per_channel: ChannelMessageCount[];
   clusters_per_channel: ChannelClusterStats[];
   cluster_size_histogram: { bucket: string; count: number }[];
-  discussion_types: LabelCount[];
+  discussion_types: { type: string; count: number }[];
   sentiment: LabelCount[];
   top_topics: { name: string; count: number }[];
   top_entities: { key: string; name: string; type: string; count: number }[];
@@ -137,8 +137,8 @@ export function computeFullStats(): FullStats {
     return { bucket: b.label, count: sizes.filter((n) => n >= min && n <= b.max).length };
   });
 
-  const discussion_types = db.all<LabelCount>(sql`
-    select discussion_type as label, count(*) as count from discussion_enrichment
+  const discussion_types = db.all<{ type: string; count: number }>(sql`
+    select discussion_type as type, count(*) as count from discussion_enrichment
     where discussion_type is not null group by discussion_type order by count desc`);
 
   const sentiment = db.all<LabelCount>(sql`

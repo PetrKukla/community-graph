@@ -20,7 +20,7 @@
   <p class="text-sm text-muted-foreground">Zatím žádná data.</p>
 {:else}
   <div class="flex flex-col gap-1.5">
-    {#each items as item (item.label)}
+    {#each items as item, i (i)}
       <div class="flex items-center gap-3">
         <span
           class="shrink-0 truncate text-xs text-muted-foreground"
