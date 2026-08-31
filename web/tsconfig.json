@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["svelte", "vite/client"],
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "sourceMap": true,
+    "allowJs": true,
+    "checkJs": true,
+    "baseUrl": ".",
+    "paths": {
+      "$lib": ["./lib"],
+      "$lib/*": ["./lib/*"]
+    }
+  },
+  "include": ["vite-env.d.ts", "**/*.ts", "**/*.js", "**/*.svelte"],
+  "exclude": ["dist", "node_modules"]
+}
