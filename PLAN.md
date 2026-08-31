@@ -4,13 +4,13 @@ Dokerizovaná služba, která převádí historii Discord komunity (kanály, zpr
 
 Práce je rozdělená do pěti částí:
 
-| Část | Náplň | Stav |
-|---|---|---|
-| **[1 — Generace grafu](#část-1--generace-grafu)** | ingest → clustering → AI enrichment → zápis do Neo4j | navrženo (většina tohoto dokumentu) |
-| **[2 — Webová aplikace a zobrazení grafu](#část-2--webová-aplikace-a-zobrazení-grafu)** | read-only realtime dashboard + vizualizace grafu | navrženo, detail v [`plans/WEBAPP.md`](plans/WEBAPP.md) |
-| **[3 — Dotazování nad grafem](#část-3--dotazování-nad-grafem-querying)** | NL dotaz → odpověď syntetizovaná z grafu (jen backend API) | **implementováno** (`POST /api/v1/query`); návrh v [`plans/QUERYING.md`](plans/QUERYING.md) |
-| **[4 — Propojení](#část-4--propojení)** | slovník jmen + sjednocený běh pipeline + webové dotazovací UI | **implementováno**; návrh v [`plans/INTEGRATION.md`](plans/INTEGRATION.md) |
-| **[5 — Budoucí vylepšení](#část-5--budoucí-vylepšení)** | streaming odpovědí a další nadstavby | **zatím nenavrženo** |
+| Část                                                                                    | Náplň                                                                                  | Stav                                                                                                       |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **[1 — Generace grafu](#část-1--generace-grafu)**                                       | ingest → clustering → AI enrichment → zápis do Neo4j                                   | navrženo (většina tohoto dokumentu)                                                                        |
+| **[2 — Webová aplikace a zobrazení grafu](#část-2--webová-aplikace-a-zobrazení-grafu)** | read-only realtime dashboard + vizualizace grafu                                       | navrženo, detail v [`plans/WEBAPP.md`](plans/WEBAPP.md)                                                    |
+| **[3 — Dotazování nad grafem](#část-3--dotazování-nad-grafem-querying)**                | NL dotaz → odpověď syntetizovaná z grafu (jen backend API)                             | **implementováno** (`POST /api/v1/query`); návrh v [`plans/QUERYING.md`](plans/QUERYING.md)                |
+| **[4 — Propojení](#část-4--propojení)**                                                 | slovník jmen + sjednocený běh pipeline + webové dotazovací UI + batchování enrichmentu | **implementováno** (mimo §4.4 batching — navrženo); návrh v [`plans/INTEGRATION.md`](plans/INTEGRATION.md) |
+| **[5 — Budoucí vylepšení](#část-5--budoucí-vylepšení)**                                 | streaming odpovědí a další nadstavby                                                   | **zatím nenavrženo**                                                                                       |
 
 ---
 
@@ -23,22 +23,26 @@ Práce je rozdělená do pěti částí:
 > Vize je taková, že se s timhle bude komunikovat přes nějakej jednoduchej HTTP server. Nejprve se pošlou všechny zprávy (kterých může být taky klidně milion, takže to musí být robustní a stabilní) a ty se efektivně převedou na graf.
 >
 > Důležité prvky, které musíme dodržet:
+>
 > - graf půjde aktualizovat tím, že pošlu novou batch zpráv a graf se správně doplní
 > - graf bude sloužit jako ultimátní databáze znalostí celé komunity - vše co kdo napsal je nová informace, kterou se náš graf naučí a já pak kdykoliv budu moci graf dotazovat a on podle svých znalostí odpoví
 >
 > Implementace:
-> *Toto je pouze můj návrh některých částí - zbytek bude, stejně jako pospojování celku a implementace, na tobě.*
+> _Toto je pouze můj návrh některých částí - zbytek bude, stejně jako pospojování celku a implementace, na tobě._
 >
 > Aktuálně se zaměříme na první část, kterou je generace grafu.
 >
 > Vstup:
+>
 > - to co přiteče nemůžeme držet v RAM, navrhuju SQLite s sqlite-vector pro ukládání zpráv, kanálů, uživatel i vektorů
 >   - z databáze budeme číst detaily, jako konkrétní zprávy nebo data uživatelů při dotazu, abychom je nemíchali do grafu a nebyl zbytečně moc velký
 >
 > Budoucí aktualizace:
+>
 > - aby při příští aktualizaci grafu nevznikaly duplicitní nodes, bylo by fajn ukládat id zpráv do sqlite a příště tyto zprávy odfiltrovat
 >
 > Clusterizace:
+>
 > - musíme zprávy rozdělit do clusterů, než je proženeme AI modelem
 > - první dělení bude podle channel_id
 > - druhé dělení provedeme podle hluchých míst v konverzaci, prostě pokud někdo M minut nenapsal, bereme blok jako ukončený
@@ -49,6 +53,7 @@ Práce je rozdělená do pěti částí:
 > - pokud máš další nápady, jak zajistit, že správně seskupíme zprávy správně k sobě do clusterů, tak řikej
 >
 > Generace a struktura grafu:
+>
 > - clustery postupně proženeme přes AI, které ke každému vygeneruje topic, entities, sentiment, summary a klidně hromadu dalších dat, které se budou hodit (v těchto věcech se snaž hodně přemýšlet i ty, chceme fakt pokročilou znalostní databázi, ze které čím víc vyčteme, tím líp)
 > - graf se bude samozřejmě skládat z nodes User, Discussion (to je ten cluster), Topic, Channel (opět, pokud máš další návrhy, klidně je podej)
 > - no a edges/relations budou:
@@ -59,6 +64,7 @@ Práce je rozdělená do pěti částí:
 >   - Topic-COOCCURS_WITH-Topic (jaká témata se objevují spolu, pro zjištění souvisejících témat)
 >
 > Příklady použití:
+>
 > - vede se v jedné roomce diskuze o tom, že na smarty mají zrovna levné grafiky, do toho někdo odpoví na zprávu z den staré diskuze, že zítra vychází trailer na GTA VI
 >   - v grafu by se reakce na GTA VI cluster měla správně zařadit a já se pak budu moct dotazovat třeba: "Jaký mají lidé názor na Smarty?" a jeden z clusterů by mohl být i tento, jelikož bude třeba obsahovat pozitivní reakce na slevy, navíc bude obsahovat další clustery, kde jsou třeba přímo recenze
 > - někdo řeší problém s Arch Linuxem, že mu nefunguje zvuk
@@ -75,6 +81,7 @@ Práce je rozdělená do pěti částí:
 Robustní pipeline: přijme batch Discord zpráv přes HTTP → rozdělí je do tematických shluků (`Discussion`) → obohatí je LLM (topic / entities / sentiment / summary / …) → zapíše jako knowledge graph. Graf jde **inkrementálně doplňovat** dalšími batchi bez duplicit a bez držení celé historie v RAM.
 
 **Mimo rozsah Části 1** (vědomě):
+
 - Query/ask endpoint — jen placeholder `POST /api/v1/query` → `501` (řeší [Část 3](#část-3--dotazování-nad-grafem-querying)).
 - Synchronizace editů/mazání zpráv z Discordu — jen batch-historické ingesty, ne live sync. Známé omezení.
 - `(User)-[:MENTIONED]->(User)` sociální graf — nápad do budoucna, nestavět teď.
@@ -94,21 +101,21 @@ Rozhodnutí z ujasňování zadání, která mění/doplňují původní návrh:
   - **(a) ingest + clustering** — uložení zpráv a rozdělení do diskuzí (kroky 0–6), bez LLM a bez Neo4j. `POST /api/v1/channels/:id/clusterize`.
   - **(b) AI enrichment** — obohacení diskuzí přes `LLMProvider` (kroky 7–9), zápis jen do SQLite (`discussion_enrichment`). `POST /api/v1/channels/:id/enrich`.
   - **(c) graph write** — zápis obohacených diskuzí do Neo4j (kroky 10–11). `POST /api/v1/channels/:id/graph-write`.
-  Žádný krok nespouští další automaticky — výstup každého jde ručně zkontrolovat (SQLite/debug endpoint, resp. Neo4j Browser) předtím, než se pustí další.
+    Žádný krok nespouští další automaticky — výstup každého jde ručně zkontrolovat (SQLite/debug endpoint, resp. Neo4j Browser) předtím, než se pustí další.
 
 ### 1.3 Tech stack
 
-| Oblast | Volba | Proč |
-|---|---|---|
-| Runtime | Bun + TypeScript | Už naskafoldováno; `bun:sqlite` vestavěné (žádný nativní modul), rychlý start, `Worker` pro CPU-bound práci mimo hlavní event loop. |
-| HTTP framework | Hono | Lehký, Bun-native, snadná zod validace, žádná zbytečná abstrakce pro pár endpointů. |
-| Staging/raw store | SQLite (`bun:sqlite`) přes **Drizzle ORM** (`drizzle-orm` + `drizzle-kit`) | Zvládne miliony řádků bez problému, WAL mód pro souběžný přístup z Worker vlákna, snadno na Docker volume. Drizzle dává typované schema-as-code a generované migrace — žádné ruční SQL. |
-| Graph store | **Neo4j** (Docker, oficiální image) | Nativní graph queries + nativní vektorový index (5.11+) pro Discussion embeddingy — nahrazuje potřebu druhé vektorové DB. |
-| Embeddingy | transformers.js (`@huggingface/transformers`, ONNX, in-process) | Plně lokální, žádná závislost na externím AI, dobrá čeština přes `Xenova/multilingual-e5-small` (384 dim) nebo `-base` (768 dim, přesnější/pomalejší). Za `EmbeddingProvider` portem. |
-| LLM enrichment | Adapter-based: `OpenAICompatibleLLMAdapter` + `AnthropicLLMAdapter` + `GeminiLLMAdapter` | Tvrdý požadavek na vyměnitelnost. Výběr přes `config.toml` (`llm.provider = "openai-compatible" \| "anthropic" \| "gemini"`), API klíče/base URL v `.env`. |
-| Background zpracování | In-process async runner, stav v SQLite, embeddingy přes `Bun.Worker` | Bez Redis/BullMQ pro teď (osobní scale) — přesto resumable po restartu, protože progress žije v SQLite. Redis/BullMQ zmíněno jen jako budoucí škálovací krok. |
-| Konfigurace | `.env` (secrets) + `config.toml` (laditelné parametry, nativní Bun TOML import) | Odděluje citlivé hodnoty od parametrů, které chce uživatel snadno ladit a mít verzované v repu (M/W/τ/θ, výběr LLM providera, embedding model). Popsáno v `README.md`. |
-| Deployment | `docker-compose`: `app` + `neo4j`, SQLite na mountnutém volume | Externí AI systém uživatele není součástí compose, dostupný přes konfigurovatelnou base URL. |
+| Oblast                | Volba                                                                                    | Proč                                                                                                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime               | Bun + TypeScript                                                                         | Už naskafoldováno; `bun:sqlite` vestavěné (žádný nativní modul), rychlý start, `Worker` pro CPU-bound práci mimo hlavní event loop.                                                     |
+| HTTP framework        | Hono                                                                                     | Lehký, Bun-native, snadná zod validace, žádná zbytečná abstrakce pro pár endpointů.                                                                                                     |
+| Staging/raw store     | SQLite (`bun:sqlite`) přes **Drizzle ORM** (`drizzle-orm` + `drizzle-kit`)               | Zvládne miliony řádků bez problému, WAL mód pro souběžný přístup z Worker vlákna, snadno na Docker volume. Drizzle dává typované schema-as-code a generované migrace — žádné ruční SQL. |
+| Graph store           | **Neo4j** (Docker, oficiální image)                                                      | Nativní graph queries + nativní vektorový index (5.11+) pro Discussion embeddingy — nahrazuje potřebu druhé vektorové DB.                                                               |
+| Embeddingy            | transformers.js (`@huggingface/transformers`, ONNX, in-process)                          | Plně lokální, žádná závislost na externím AI, dobrá čeština přes `Xenova/multilingual-e5-small` (384 dim) nebo `-base` (768 dim, přesnější/pomalejší). Za `EmbeddingProvider` portem.   |
+| LLM enrichment        | Adapter-based: `OpenAICompatibleLLMAdapter` + `AnthropicLLMAdapter` + `GeminiLLMAdapter` | Tvrdý požadavek na vyměnitelnost. Výběr přes `config.toml` (`llm.provider = "openai-compatible" \| "anthropic" \| "gemini"`), API klíče/base URL v `.env`.                              |
+| Background zpracování | In-process async runner, stav v SQLite, embeddingy přes `Bun.Worker`                     | Bez Redis/BullMQ pro teď (osobní scale) — přesto resumable po restartu, protože progress žije v SQLite. Redis/BullMQ zmíněno jen jako budoucí škálovací krok.                           |
+| Konfigurace           | `.env` (secrets) + `config.toml` (laditelné parametry, nativní Bun TOML import)          | Odděluje citlivé hodnoty od parametrů, které chce uživatel snadno ladit a mít verzované v repu (M/W/τ/θ, výběr LLM providera, embedding model). Popsáno v `README.md`.                  |
+| Deployment            | `docker-compose`: `app` + `neo4j`, SQLite na mountnutém volume                           | Externí AI systém uživatele není součástí compose, dostupný přes konfigurovatelnou base URL.                                                                                            |
 
 ### 1.4 Struktura repozitáře
 
@@ -177,117 +184,134 @@ tests/
 Žádné ruční SQL — schéma je TypeScript (`src/db/sqlite/schema.ts`), migrace generuje `drizzle-kit generate` do `migrations/`, na startu appky běží `migrate()` z `drizzle-orm/bun-sqlite/migrator`. (Aktuální podobu drží vždy `src/db/sqlite/schema.ts`.)
 
 ```typescript
-import { sqliteTable, text, integer, real, blob, index } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  real,
+  blob,
+  index
+} from 'drizzle-orm/sqlite-core';
 
-export const guilds = sqliteTable("guilds", {
-  id: text("id").primaryKey(),
-  name: text("name"),
-  createdAt: text("created_at"),
+export const guilds = sqliteTable('guilds', {
+  id: text('id').primaryKey(),
+  name: text('name'),
+  createdAt: text('created_at')
 });
 
-export const channels = sqliteTable("channels", {
-  id: text("id").primaryKey(),
-  guildId: text("guild_id").references(() => guilds.id),
-  name: text("name"),
-  type: text("type"),
-  createdAt: text("created_at"),
-  updatedAt: text("updated_at"),
+export const channels = sqliteTable('channels', {
+  id: text('id').primaryKey(),
+  guildId: text('guild_id').references(() => guilds.id),
+  name: text('name'),
+  type: text('type'),
+  createdAt: text('created_at'),
+  updatedAt: text('updated_at')
 });
 
-export const users = sqliteTable("users", {
-  id: text("id").primaryKey(),
-  username: text("username"),
-  displayName: text("display_name"),
-  firstSeenAt: text("first_seen_at"),
-  lastSeenAt: text("last_seen_at"),
-  messageCount: integer("message_count").notNull().default(0),
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(),
+  username: text('username'),
+  displayName: text('display_name'),
+  firstSeenAt: text('first_seen_at'),
+  lastSeenAt: text('last_seen_at'),
+  messageCount: integer('message_count').notNull().default(0)
 });
 
-export const ingestionBatches = sqliteTable("ingestion_batches", {
-  id: text("id").primaryKey(),
-  channelId: text("channel_id").references(() => channels.id),
-  receivedAt: text("received_at").notNull(),
-  messageCount: integer("message_count").notNull(),
-  status: text("status").notNull().default("received"), // received|queued|processed|failed
+export const ingestionBatches = sqliteTable('ingestion_batches', {
+  id: text('id').primaryKey(),
+  channelId: text('channel_id').references(() => channels.id),
+  receivedAt: text('received_at').notNull(),
+  messageCount: integer('message_count').notNull(),
+  status: text('status').notNull().default('received') // received|queued|processed|failed
 });
 
-export const messages = sqliteTable("messages", {
-  id: text("id").primaryKey(),                          // Discord message id
-  channelId: text("channel_id").notNull(),
-  guildId: text("guild_id"),
-  authorId: text("author_id").notNull(),
-  content: text("content").notNull(),
-  createdAt: text("created_at").notNull(),               // ISO8601, indexováno pro chronologické scany
-  replyToMessageId: text("reply_to_message_id"),
-  threadId: text("thread_id"),
-  mentions: text("mentions", { mode: "json" }).$type<string[]>(),
-  attachmentsCount: integer("attachments_count").notNull().default(0),
-  wordCount: integer("word_count").notNull(),            // předpočítáno, řídí short-message shortcut
-  batchId: text("batch_id").references(() => ingestionBatches.id),
-  ingestedAt: text("ingested_at").notNull(),
-  processed: integer("processed").notNull().default(0),  // 0=raw 1=clustered 2=enriched 3=graph-written
-  discussionId: text("discussion_id"),                   // FK -> discussionsLocal.id
-}, (table) => [
-  index("idx_messages_channel_time").on(table.channelId, table.createdAt),
-  index("idx_messages_thread").on(table.threadId),
-  index("idx_messages_reply_to").on(table.replyToMessageId),
-  index("idx_messages_processed").on(table.processed),
-]);
+export const messages = sqliteTable(
+  'messages',
+  {
+    id: text('id').primaryKey(), // Discord message id
+    channelId: text('channel_id').notNull(),
+    guildId: text('guild_id'),
+    authorId: text('author_id').notNull(),
+    content: text('content').notNull(),
+    createdAt: text('created_at').notNull(), // ISO8601, indexováno pro chronologické scany
+    replyToMessageId: text('reply_to_message_id'),
+    threadId: text('thread_id'),
+    mentions: text('mentions', { mode: 'json' }).$type<string[]>(),
+    attachmentsCount: integer('attachments_count').notNull().default(0),
+    wordCount: integer('word_count').notNull(), // předpočítáno, řídí short-message shortcut
+    batchId: text('batch_id').references(() => ingestionBatches.id),
+    ingestedAt: text('ingested_at').notNull(),
+    processed: integer('processed').notNull().default(0), // 0=raw 1=clustered 2=enriched 3=graph-written
+    discussionId: text('discussion_id') // FK -> discussionsLocal.id
+  },
+  (table) => [
+    index('idx_messages_channel_time').on(table.channelId, table.createdAt),
+    index('idx_messages_thread').on(table.threadId),
+    index('idx_messages_reply_to').on(table.replyToMessageId),
+    index('idx_messages_processed').on(table.processed)
+  ]
+);
 
-export const channelCheckpoints = sqliteTable("channel_checkpoints", {
-  channelId: text("channel_id").primaryKey(),
-  lastProcessedMessageId: text("last_processed_message_id"),
-  lastProcessedCreatedAt: text("last_processed_created_at"),
-  updatedAt: text("updated_at").notNull(),
+export const channelCheckpoints = sqliteTable('channel_checkpoints', {
+  channelId: text('channel_id').primaryKey(),
+  lastProcessedMessageId: text('last_processed_message_id'),
+  lastProcessedCreatedAt: text('last_processed_created_at'),
+  updatedAt: text('updated_at').notNull()
 });
 
-export const jobs = sqliteTable("jobs", {
-  id: text("id").primaryKey(),
-  type: text("type").notNull(),                          // cluster|enrich|graph_write (full_pipeline: budoucí zřetězení, není v1)
-  status: text("status").notNull().default("pending"),    // pending|running|completed|failed|partial
-  channelId: text("channel_id"),
-  batchId: text("batch_id"),
-  cursor: text("cursor", { mode: "json" }),                // JSON: resume stav
-  progressCurrent: integer("progress_current").notNull().default(0),
-  progressTotal: integer("progress_total").notNull().default(0),
-  error: text("error"),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-  startedAt: text("started_at"),
-  finishedAt: text("finished_at"),
+export const jobs = sqliteTable('jobs', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(), // cluster|enrich|graph_write (full_pipeline: budoucí zřetězení, není v1)
+  status: text('status').notNull().default('pending'), // pending|running|completed|failed|partial
+  channelId: text('channel_id'),
+  batchId: text('batch_id'),
+  cursor: text('cursor', { mode: 'json' }), // JSON: resume stav
+  progressCurrent: integer('progress_current').notNull().default(0),
+  progressTotal: integer('progress_total').notNull().default(0),
+  error: text('error'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  startedAt: text('started_at'),
+  finishedAt: text('finished_at')
 });
 
-export const discussionsLocal = sqliteTable("discussions_local", {
-  id: text("id").primaryKey(),                            // uuid, stane se Neo4j Discussion.id
-  channelId: text("channel_id").notNull(),
-  threadId: text("thread_id"),
-  blockStartAt: text("block_start_at").notNull(),
-  blockEndAt: text("block_end_at").notNull(),
-  status: text("status").notNull().default("clustering"),  // clustering|needs_reenrichment|enriched|written
-  neo4jWritten: integer("neo4j_written").notNull().default(0),
-  centroidEmbedding: blob("centroid_embedding", { mode: "buffer" }), // dočasné, mazatelné po enrichmentu
+export const discussionsLocal = sqliteTable('discussions_local', {
+  id: text('id').primaryKey(), // uuid, stane se Neo4j Discussion.id
+  channelId: text('channel_id').notNull(),
+  threadId: text('thread_id'),
+  blockStartAt: text('block_start_at').notNull(),
+  blockEndAt: text('block_end_at').notNull(),
+  status: text('status').notNull().default('clustering'), // clustering|needs_reenrichment|enriched|written
+  neo4jWritten: integer('neo4j_written').notNull().default(0),
+  centroidEmbedding: blob('centroid_embedding', { mode: 'buffer' }) // dočasné, mazatelné po enrichmentu
 });
 
-export const discussionEnrichment = sqliteTable("discussion_enrichment", {
-  discussionId: text("discussion_id").primaryKey().references(() => discussionsLocal.id),
-  title: text("title"),
-  summary: text("summary"),
-  topics: text("topics", { mode: "json" }).$type<string[]>(),
-  entities: text("entities", { mode: "json" }).$type<{ name: string; type: string }[]>(),
-  sentiment: text("sentiment"),
-  sentimentScore: real("sentiment_score"),
-  language: text("language"),
-  discussionType: text("discussion_type"),
-  resolved: integer("resolved", { mode: "boolean" }),
-  rawLlmResponse: text("raw_llm_response"),                 // audit/debug
-  enrichedAt: text("enriched_at"),
+export const discussionEnrichment = sqliteTable('discussion_enrichment', {
+  discussionId: text('discussion_id')
+    .primaryKey()
+    .references(() => discussionsLocal.id),
+  title: text('title'),
+  summary: text('summary'),
+  topics: text('topics', { mode: 'json' }).$type<string[]>(),
+  entities: text('entities', { mode: 'json' }).$type<
+    { name: string; type: string }[]
+  >(),
+  sentiment: text('sentiment'),
+  sentimentScore: real('sentiment_score'),
+  language: text('language'),
+  discussionType: text('discussion_type'),
+  resolved: integer('resolved', { mode: 'boolean' }),
+  rawLlmResponse: text('raw_llm_response'), // audit/debug
+  enrichedAt: text('enriched_at')
 });
 
-export const embeddingsCache = sqliteTable("embeddings_cache", {
-  messageId: text("message_id").primaryKey().references(() => messages.id),
-  embedding: blob("embedding", { mode: "buffer" }).notNull(),
-  modelName: text("model_name").notNull(),
-  createdAt: text("created_at").notNull(),
+export const embeddingsCache = sqliteTable('embeddings_cache', {
+  messageId: text('message_id')
+    .primaryKey()
+    .references(() => messages.id),
+  embedding: blob('embedding', { mode: 'buffer' }).notNull(),
+  modelName: text('model_name').notNull(),
+  createdAt: text('created_at').notNull()
 });
 ```
 
@@ -311,6 +335,7 @@ OPTIONS { indexConfig: { `vector.dimensions`: 384, `vector.similarity_function`:
 ```
 
 **Nodes:**
+
 - `User {id, username, display_name, first_seen_at, last_seen_at, message_count}` — bez obsahu zpráv, graf zůstává štíhlý.
 - `Channel {id, name, guild_id}`
 - `Discussion {id, channel_id, started_at, ended_at, message_count, participant_count, title, summary, topics[] /*denormalizované, jen pro pohodlí*/, sentiment, sentiment_score, language, discussion_type, resolved, embedding}`
@@ -322,6 +347,7 @@ OPTIONS { indexConfig: { `vector.dimensions`: 384, `vector.similarity_function`:
 `Entity` node (navíc oproti zadání — uživatel žádal extrakci „entities", ne samostatný node typ) odděluje konkrétní pojmenované věci (produkt „RTX 4070", brand „Smarty", technologie „Arch Linux") od širších `Topic` (např. „grafické karty"). Bez tohoto rozlišení by `Topic` uzly rychle explodovaly a `COOCCURS_WITH` ztratilo smysl.
 
 **Relationships:**
+
 - `(User)-[:PARTICIPATED_IN {message_count, first_message_at, last_message_at}]->(Discussion)`
 - `(Discussion)-[:DISCUSSES]->(Topic)`
 - `(Discussion)-[:OCCURRED_IN]->(Channel)`
@@ -345,7 +371,7 @@ Běží per kanál, per spuštění pipeline. Rozlišuje první ingest (bez chec
 - **Krok 3 — Reply reassignment (cross-block / cross-batch).** Pro každou zprávu s `reply_to_message_id` se dohledá `discussion_id` cíle (z aktuálního batche i z už zapsané diskuze z dřívějšího běhu). Dvě cesty:
   - **(a) přesun jen té jedné zprávy** — pokud zpráva v kroku 5 zůstane lokálním outlierem (nic nového se s ní neshlukne), přesune se sama do cílové diskuze. Řeší „krátkou reakci do den staré diskuze" (příklad GTA VI).
   - **(b) CONTINUATION_OF na úrovni diskuze** — pokud se zpráva v kroku 5 shlukne s ≥2 dalšími novými zprávami do vlastního sub-clusteru, zůstane v nové diskuzi a graph-write (krok 10) místo přesunu vytvoří hranu `CONTINUATION_OF {reason:'explicit_reply'}` z nové diskuze na starou.
-  Pořadí implementace: nejprve tentativně označit reply cíle → spustit krok 5 → finalizovat (a) vs (b) podle výsledného členství v sub-clusteru.
+    Pořadí implementace: nejprve tentativně označit reply cíle → spustit krok 5 → finalizovat (a) vs (b) podle výsledného členství v sub-clusteru.
 - **Krok 4 — Short-message shortcut.** Zprávy s `word_count < W` přeskočí embedding: přilepí se (a) k diskuzi svého reply cíle, jinak (b) k diskuzi chronologicky předcházející zprávy ve stejném bloku; první zpráva nového bloku založí novou diskuzi. `W` konfigurovatelné.
 - **Krok 5 — Streaming clustering delších zpráv.** Per blok se drží seznam aktivních sub-clusterů `{id, centroid, lastMessageAt, recentAuthors, recentMentionedUsers}` (reset per blok per proud). Pro každou nevyřešenou zprávu v pořadí: batch-embedding přes `EmbeddingProvider`; cosine similarity vůči každému aktivnímu centroidu + malé heuristické bonusy (nedávno psal stejný autor; @mention nedávného participanta sub-clusteru); přiřazení k nejlepší shodě při skóre ≥ `τ`, jinak nový sub-cluster. Sub-clustery po delší neaktivitě (`active_subcluster_idle_minutes`) se vyřazují z aktivní sady → nikdy plné O(n²) přes celý kanál. `τ` konfigurovatelné.
 - **Krok 6 — Finalizace `discussions_local`.** Nové sub-clustery → nové řádky; zprávy z 3(a) / reply / short-message shortcuts ukazují na existující řádky, které dostanou `status = 'needs_reenrichment'`.
@@ -448,13 +474,13 @@ Milníky odpovídají třem krokům (a/b/c) — každý končí funkčním, ruč
 
 - **M0 — Scaffolding & config.** `package.json` (hono, zod, `@huggingface/transformers`, `neo4j-driver`, `drizzle-orm`, `drizzle-kit` (dev), `@anthropic-ai/sdk`, `@google/genai`, uuid), `src/config/env.ts` (zod nad `.env`), `src/config/config.ts` (zod nad `config.toml`), `config.toml`, `.env.example`, `drizzle.config.ts`, `docker-compose.yml` skeleton (zatím jen `app` + volume; `neo4j` přibude v M4), `docker/Dockerfile`, `src/index.ts` (Hono + `/health`), český `README.md` (popis `config.toml`/`.env` a spuštění).
 - **M1 — SQLite schéma (Drizzle) + ingest + dedup + auth.** `src/db/sqlite/schema.ts`, `client.ts`, migrace `drizzle-kit generate` → `migrations/`, repositories `message/channel/user/batch` (Drizzle query builder), `src/http/routes/ingest.ts` (`POST /api/v1/batches`, jen ukládá), `src/http/middleware/apiKey.ts` (aktivní na všech `/api/v1/*`, klíč z `.env`). Dedup přes `insert().onConflictDoNothing()`/upsert na message/user/channel id.
-  *Test:* curl batch → počty řádků v SQLite + dedup při opakovaném odeslání; `401` bez/se špatným API klíčem.
+  _Test:_ curl batch → počty řádků v SQLite + dedup při opakovaném odeslání; `401` bez/se špatným API klíčem.
 - **M2 — Krok (a): embedding adapter + clustering + `/clusterize`.** `EmbeddingProvider.ts`, `LocalTransformersEmbeddingAdapter.ts`, `timeBlockSplitter.ts`, `streamingClusterer.ts`, `shortMessageAttachment.ts`, `replyReassignment.ts` (zatím jen intra-batch větev, cross-batch v M5), `src/jobs/worker.ts`, `clusterStage.ts`, `jobRunner.ts` (typ `cluster`), `src/http/routes/clusterize.ts`, `discussionStagingRepository.ts`, debug `GET /api/v1/channels/:id/discussions`. Bez LLM, bez Neo4j.
-  *Test:* ingest testovacího batche → `/clusterize` → `/discussions` a ruční kontrola rozpadu (thread bypass, time-gap split, short-message attachment). Unit testy `streamingClusterer`/`timeBlockSplitter`/`shortMessageAttachment` nezávisle na HTTP vrstvě.
+  _Test:_ ingest testovacího batche → `/clusterize` → `/discussions` a ruční kontrola rozpadu (thread bypass, time-gap split, short-message attachment). Unit testy `streamingClusterer`/`timeBlockSplitter`/`shortMessageAttachment` nezávisle na HTTP vrstvě.
 - **M3 — Krok (b): LLM adaptery + enrichment + `/enrich`.** `LLMProvider.ts`, `schemas.ts`, `OpenAICompatibleLLMAdapter.ts`, `AnthropicLLMAdapter.ts`, `GeminiLLMAdapter.ts` (`@google/genai`, structured JSON output), `enrichmentPipeline.ts`, `topicCanonicalizer.ts` (kanonizace zatím jen in-memory, proti Neo4j indexu až v M4), `enrichStage.ts`, `jobRunner.ts` + typ `enrich`, `src/http/routes/enrich.ts`. Provider přes `config.toml` `[llm]`, klíče přes `.env`.
-  *Test:* na kanálu proklastrovaném v M2 `POST /enrich` → `/discussions` a kontrola title/summary/topics/sentiment bez zapnutého Neo4j.
+  _Test:_ na kanálu proklastrovaném v M2 `POST /enrich` → `/discussions` a kontrola title/summary/topics/sentiment bez zapnutého Neo4j.
 - **M4 — Krok (c): Neo4j schéma + idempotentní writer + `/graph-write`.** `GraphStore.ts`, `Neo4jGraphStore.ts` (bootstrap constraints/vektorového indexu + MERGE queries), `discussionWriter.ts` (vč. `INTERESTED_IN` agregace User→Topic a `entityCanonicalizer.ts` proti Neo4j indexu), `graphWriteStage.ts`, `jobRunner.ts` + typ `graph_write`, `src/http/routes/graphWrite.ts`, dokončení `neo4j` service v `docker-compose.yml` (volume + healthcheck).
-  *Test:* na kanálu obohaceném v M3 `POST /graph-write` → Neo4j Browser dotazy na `Discussion`/`User`/`Topic`/`INTERESTED_IN`.
+  _Test:_ na kanálu obohaceném v M3 `POST /graph-write` → Neo4j Browser dotazy na `Discussion`/`User`/`Topic`/`INTERESTED_IN`.
 - **M5 — Korektnost inkrementálních updatů napříč všemi třemi kroky.** `replyReassignment.ts` o cross-batch/cross-run větev (krok 3a/3b), `continuationInference.ts` (sémantické `CONTINUATION_OF` přes Neo4j vektorový index), `checkpointRepository.ts` (block-closure logika). Integrační testy dvou po sobě jdoucích cyklů `clusterize → enrich → graph-write`, vč. reply o několik dní později do už zapsané diskuze.
 - **M6 — docker-compose + Dockerfile + e2e smoke test.** Finální `docker/Dockerfile` (multi-stage Bun build), `docker-compose.yml`, `.env.example`, README s instrukcemi, `tests/integration/ingestion.integration.test.ts` (prochází všechny čtyři endpointy v pořadí). Automatické zřetězení do jednoho „spusť všechno" volání je mimo scope Části 1 — řeší [Část 4](#část-4--propojení) (`plans/INTEGRATION.md`, §4.2).
 
@@ -484,6 +510,7 @@ Milníky odpovídají třem krokům (a/b/c) — každý končí funkčním, ruč
 Lehké **read-only realtime** webové rozhraní nad běžící službou Části 1. Navazuje na M6, nemění chování pipeline. **Není to samostatný projekt ani monorepo** — je to prostě jednoduchý náhled zabudovaný přímo do služby `community-graph`.
 
 **Co ukazuje:**
+
 - aktuální i historické **jobs** — stav, progress, výsledek/chyba
 - **AI požadavky** — stream LLM volání: provider, model, kontext, doba generace, stav, tokeny
 - **statistiky** — zprávy podle kanálů; průměrná a p50/p95 doba generace LLM (celkově i per model); clusterizace (kolik diskuzí, rozložení velikostí, per kanál kolik zpráv v kolika clusterech); rozpad podle `discussion_type`/`sentiment`; top témata/entity; pipeline funnel `raw → clustered → enriched → graph-written`
@@ -523,6 +550,7 @@ Sjednocení hotových částí 1–3 do plynulého celku. Tři nezávislé slice
 - **Slovník jmen** — názvy uživatelů/kanálů/serveru se posílají zvlášť a přírůstkově přes `POST /api/v1/dictionary`, ne s každou dávkou zpráv; dávky nesou jen ID. Jediný zdroj pravdy o názvech je SQLite, propagace do Neo4j vč. nového uzlu `Guild` (inline nebo job `name_sync`, `POST /api/v1/dictionary/graph-resync` pro obnovu). Detail v [`plans/DICTIONARY.md`](plans/DICTIONARY.md).
 - **Sjednocený běh pipeline** — `POST /api/v1/pipeline` (i `POST /api/v1/channels/:id/pipeline`) přijme dávku a jedním jobem `pipeline` provede ingest → clusterize → enrich → graph-write, s průběžným `result` po každé stage. Granulární endpointy zůstávají. Nahrazuje dosud odložené „spusť všechno" (viz [§1.1](#11-cíl-a-rozsah), M6).
 - **Webové dotazovací rozhraní** — pohled `/ask` v dashboardu z [Části 2](#část-2--webová-aplikace-a-zobrazení-grafu) nad API z [Části 3](#část-3--dotazování-nad-grafem-querying): odeslání otázky, ukotvená odpověď, klikací citace (`[D#]` → karty) vedoucí na drawer s detailem diskuze (`GET /api/v1/discussions/:id`) a na uzel v grafové vizualizaci (`/graph?focus=`), klientská historie dotazů v `localStorage`.
+- **Batchování enrichmentu** (navrženo, §4.4) — enrichment stage posílá víc clusterů do jednoho LLM volání dle konfigurovaného tokenového rozpočtu (`[llm].enrichment_batch_target_tokens`), s oštítkováním clusterů v promptu (delimitery) a mapováním vrácených `segments[]` zpět na rodičovské diskuze přes vlastnictví zpráv. Napojuje se na existující split mechanismus (`enrichmentResponseSchema.segments`). Detail v [`plans/INTEGRATION.md`](plans/INTEGRATION.md), §4.4.
 
 ---
 
