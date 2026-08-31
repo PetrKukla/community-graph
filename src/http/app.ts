@@ -11,6 +11,7 @@ import { graphWriteRoute } from "./routes/graphWrite";
 import { jobsRoute } from "./routes/jobs";
 import { discussionsRoute } from "./routes/discussions";
 import { enrichmentRoute } from "./routes/enrichment";
+import { queryRoute } from "./routes/query";
 import { streamRoute } from "./routes/stream";
 import { statsRoute } from "./routes/stats";
 import { aiCallsRoute } from "./routes/aiCalls";
@@ -36,6 +37,7 @@ api.route("/", graphWriteRoute);
 api.route("/", jobsRoute);
 api.route("/", discussionsRoute);
 api.route("/", enrichmentRoute);
+api.route("/", queryRoute);
 
 // Web-interface read APIs (disabled entirely when [web] enabled = false).
 if (config.web.enabled) {
