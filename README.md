@@ -109,6 +109,18 @@ skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`. 
 | `web.llm_calls_retention_days` / `web.llm_calls_max_rows` | Retence tabulky `llm_calls` (dashboard buffer): při zápisu se občas smažou řádky starší než N dní nebo nad limitem řádků. |
 | `web.stats_tick_seconds` | Interval přepočtu levného `funnel`/`totals` agregátu, který jde WS klientům jako `stats.tick`. Počítá se jen když je aspoň jeden klient připojený. |
 | `web.graph_overview_limit` | Cílový horní počet uzlů v prvním vykreslení grafu; zbytek se dolazí rozbalením sousedů. |
+| `query.vector_top_k` | Kolik kandidátů z vektorového indexu se vezme na jednu variantu dotazu. |
+| `query.search_query_variants` | Strop na počet přeformulování otázky, které vygeneruje plánovač. |
+| `query.anchor_limit` | Strop diskuzí dotažených přes shodu názvu tématu/entity (Neo4j fulltext). |
+| `query.expansion_seed_count` / `query.expansion_fanout` | Kolik nejlepších kandidátů jde do grafové expanze a kolik sousedů se z každého vezme. |
+| `query.evidence_set_size` | Kolik diskuzí se pošle do syntézy odpovědi. |
+| `query.raw_message_discussions` / `query.raw_messages_per_discussion` | U kolika top diskuzí a kolik syrových zpráv z SQLite se přidá do kontextu (`0` = jen shrnutí). |
+| `query.context_token_budget` | Odhadovaný strop kontextu; ořezává se od nejníže skórujících diskuzí (nejdřív syrové zprávy, pak celé bloky). |
+| `query.min_candidate_score` | Práh skóre. Když po fúzi nic neprojde, endpoint vrátí `confidence: "low"` bez volání LLM syntézy. |
+| `query.recency_half_life_days` | Po kolika dnech klesne recency bonus na polovinu. |
+| `query.weight_vector` / `weight_anchor` / `weight_expansion` / `weight_recency` | Váhy složek finálního skóre kandidáta. |
+| `query.opinion_sentiment_diversity` | U názorových otázek držet v evidence setu i menšinový sentiment (pozitivní/negativní). |
+| `query.vocab_sample_size` | Kolik nejčastějších názvů `Topic`/`Entity` se dá plánovači jako slovník grafu. |
 
 ## Webové rozhraní
 
@@ -292,6 +304,7 @@ jinak `401`. Platná cesta s nepodporovanou metodou → `405 method_not_allowed`
 | `GET /api/v1/graph/overview?channel_id=&limit=` | Navzorkovaný podgraf pro první vykreslení. `503 neo4j_not_configured` bez Neo4j. |
 | `GET /api/v1/graph/node/:id/neighbors?limit=` | Sousedé uzlu (expand-on-click). `id` je Neo4j `elementId`. |
 | `GET /api/v1/graph/search?q=` | Fulltext přes `Topic.name` / `Entity.name` / `Discussion.title` / `User.username`. |
+| `POST /api/v1/query` | **Část 3 — dotazování.** NL otázka → odpověď syntetizovaná z grafu + citace. Synchronní. `503 graph_unavailable` bez Neo4j, `422` u prázdné otázky. |
 
 Endpointy `stream` / `stats` / `ai/calls` / `graph/*` existují jen když `config.toml` má `[web] enabled = true`.
 
@@ -340,6 +353,48 @@ Diskuze obohacená vcelku vrací `enrichment` objekt (`title`, `summary`, `topic
 `[{ name, type }]`, `key_points`, `sentiment` + `sentiment_score`, `language`, `discussion_type`,
 `resolved`, `enriched_at`). Rozdělená diskuze vrací rodiče se `status = "split"`, `enrichment: null`
 a polem `segments` (jeden záznam za každou dětskou diskuzi).
+
+## Dotazování nad grafem (Část 3)
+
+`POST /api/v1/query` položí otázku v přirozeném jazyce a vrátí odpověď syntetizovanou
+z relevantních diskuzí. Vyžaduje naplněné Neo4j (proběhlý `graph-write`) a stejný `[llm]`
+adapter jako enrichment. Běží synchronně; jeden request = 1 lokální embedding dávka + pár
+Neo4j čtení + **2 LLM volání** (plánovač dotazu + syntéza odpovědi).
+
+Pipeline: porozumění dotazu (LLM → přeformulování, témata, intent, filtry) → retrieval
+(vektorový index + shoda názvů `Topic`/`Entity` přes fulltext) → grafová expanze
+(`CONTINUATION_OF` / sdílené téma nebo entita / `COOCCURS_WITH`, re-rank podle podobnosti
+k otázce) → sestavení kontextu (shrnutí + `key_points` + syrové zprávy u top diskuzí) →
+ukotvená syntéza s citacemi `[D#]`. Detailní návrh: [`plans/QUERYING.md`](plans/QUERYING.md).
+
+```bash
+curl -X POST http://localhost:3004/api/v1/query \
+  -H "X-API-Key: $API_KEY" -H "content-type: application/json" \
+  -d '{ "question": "Jaký mají lidé názor na Smarty?" }'
+```
+
+```jsonc
+{
+  "answer": "Lidé jsou na Smarty spíš negativní kvůli cenám [D1][D3]. ...",
+  "confidence": "high",              // high | medium | low
+  "citations": [
+    { "ref": "D1", "discussion_id": "…", "title": "…", "channel": "hardware",
+      "discussion_type": "discussion", "sentiment": "negative", "started_at": "…",
+      "score": 0.83, "used": true }
+  ],
+  "used_discussion_count": 2,
+  "intent": "opinion",
+  "answer_language": "cs"
+}
+```
+
+- Nepovinné tělo: `filters.channel_ids[]`, `filters.discussion_types[]`, `filters.since`
+  (ISO datum) — explicitní filtr má přednost před tím, co odvodí plánovač.
+- `?debug=1` přidá objekt `debug` s plánem dotazu, kandidáty (skóre + zdroj) a časy fází.
+- Když po fúzi neprojde nic nad `query.min_candidate_score`, vrátí se `confidence: "low"`
+  a věcné „nenašel jsem dost podkladů" — **bez** volání LLM syntézy (a bez fabulace).
+- Když selže plánovací LLM volání, pipeline spadne zpět na vyhledávání podle syrové otázky
+  a odpoví i tak.
 
 ## Doporučený postup ladění
 
