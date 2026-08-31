@@ -1,4 +1,11 @@
 import type { DiscussionGraphPayload } from "../graphBuilder/types";
+import type {
+  DiscussionCore,
+  DiscussionMatch,
+  ExpansionMatch,
+  LabelVocab,
+  RetrievalFilters,
+} from "../query/types";
 
 /** One node in a graph view sent to the dashboard. `id` is Neo4j's stable elementId. */
 export interface GraphViewNode {
@@ -35,7 +42,7 @@ export interface GraphOverviewOptions {
  * implementation may use plain counters in MERGE ... ON MATCH.
  */
 export interface GraphStore {
-  /** Create constraints and the discussion vector index if missing. Safe to call repeatedly. */
+  /** Create constraints, the discussion vector index and the label fulltext index if missing. Safe to call repeatedly. */
   bootstrap(): Promise<void>;
   /** Write one enriched discussion and all its nodes/edges in a single transaction. */
   writeDiscussion(payload: DiscussionGraphPayload): Promise<void>;
@@ -51,4 +58,22 @@ export interface GraphStore {
   nodeNeighbors(id: string, limit: number): Promise<GraphView>;
   /** Candidate nodes matching a free-text query (Topic/Entity name, Discussion title, username). */
   searchNodes(query: string, limit: number): Promise<GraphViewNode[]>;
+
+  // --- read-only retrieval for querying (Část 3) ---------------------------
+
+  /** Most-referenced Topic / Entity names, handed to the query planner as the graph's vocabulary. */
+  sampleLabelVocab(limit: number): Promise<LabelVocab>;
+  /** ANN search over the discussion vector index; `score` is cosine similarity 0..1. */
+  searchDiscussionsByVector(vector: Float32Array, k: number, filters: RetrievalFilters): Promise<DiscussionMatch[]>;
+  /** Discussions reached from Topic / Entity nodes whose name matches the plan (fulltext). Rows carry `embedding`. */
+  getDiscussionsByAnchors(
+    topics: string[],
+    entities: string[],
+    limit: number,
+    filters: RetrievalFilters,
+  ): Promise<DiscussionMatch[]>;
+  /** One hop out of the seed discussions along meaningful edges. Rows carry `embedding` for TS re-ranking. */
+  expandDiscussions(seedIds: string[], totalLimit: number): Promise<ExpansionMatch[]>;
+  /** Everything context assembly needs about a set of discussions: channel, participants, entities, scalars. */
+  getDiscussionCores(ids: string[]): Promise<DiscussionCore[]>;
 }

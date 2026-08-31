@@ -1,4 +1,4 @@
-import neo4j, { type Driver, type Node, type Relationship } from "neo4j-driver";
+import neo4j, { type Driver, type Node, type Record as Neo4jRecord, type Relationship } from "neo4j-driver";
 import { config } from "../../config/config";
 import type {
   GraphOverviewOptions,
@@ -8,6 +8,14 @@ import type {
   GraphViewNode,
 } from "../../core/ports/GraphStore";
 import type { DiscussionGraphPayload } from "../../core/graphBuilder/types";
+import type {
+  DiscussionCore,
+  DiscussionMatch,
+  ExpansionMatch,
+  ExpansionVia,
+  LabelVocab,
+  RetrievalFilters,
+} from "../../core/query/types";
 import { getNeo4jDriver } from "./driver";
 
 const KNOWN_LABELS = ["Discussion", "Topic", "Entity", "User", "Channel"];
@@ -165,6 +173,107 @@ MERGE (d)-[r:CONTINUATION_OF]->(target)
   ON MATCH SET r.reason = $reason, r.similarity_score = coalesce($similarityScore, r.similarity_score)
 `;
 
+const DISCUSSION_RETURN = `
+  d.id AS id, d.title AS title, d.summary AS summary, d.channel_id AS channelId,
+  d.discussion_type AS discussionType, d.sentiment AS sentiment, d.resolved AS resolved,
+  d.started_at AS startedAt
+`;
+
+const VECTOR_SEARCH = `
+CALL db.index.vector.queryNodes('discussion_embedding_idx', $fetchK, $vector) YIELD node AS d, score
+WHERE ($channelIds IS NULL OR d.channel_id IN $channelIds)
+  AND ($types IS NULL OR d.discussion_type IN $types)
+  AND ($since IS NULL OR d.started_at >= $since)
+RETURN ${DISCUSSION_RETURN}, score
+ORDER BY score DESC
+LIMIT $k
+`;
+
+const ANCHOR_SEARCH = `
+CALL db.index.fulltext.queryNodes('graph_labels_fts', $lucene) YIELD node, score
+WITH node, score WHERE node:Topic OR node:Entity
+WITH node, score ORDER BY score DESC LIMIT $anchorNodeLimit
+MATCH (node)<-[:DISCUSSES|MENTIONS]-(d:Discussion)
+WHERE ($channelIds IS NULL OR d.channel_id IN $channelIds)
+  AND ($types IS NULL OR d.discussion_type IN $types)
+  AND ($since IS NULL OR d.started_at >= $since)
+WITH DISTINCT d
+RETURN ${DISCUSSION_RETURN}, d.embedding AS embedding
+LIMIT $limit
+`;
+
+const EXPAND = `
+UNWIND $seedIds AS sid
+MATCH (seed:Discussion {id: sid})
+CALL {
+  WITH seed
+  MATCH (seed)-[:CONTINUATION_OF]-(n:Discussion) RETURN n, 'continuation' AS via
+  UNION
+  WITH seed
+  MATCH (seed)-[:DISCUSSES]->(:Topic)<-[:DISCUSSES]-(n:Discussion) RETURN n, 'shared_topic' AS via
+  UNION
+  WITH seed
+  MATCH (seed)-[:MENTIONS]->(:Entity)<-[:MENTIONS]-(n:Discussion) RETURN n, 'shared_entity' AS via
+  UNION
+  WITH seed
+  MATCH (seed)-[:DISCUSSES]->(:Topic)-[:COOCCURS_WITH]-(:Topic)<-[:DISCUSSES]-(n:Discussion) RETURN n, 'cooccurring_topic' AS via
+}
+WITH sid AS seedId, n AS d, via
+WHERE d.id <> seedId
+RETURN DISTINCT seedId, via, ${DISCUSSION_RETURN}, d.embedding AS embedding
+LIMIT $totalLimit
+`;
+
+const DISCUSSION_CORES = `
+UNWIND $ids AS wantedId
+MATCH (d:Discussion {id: wantedId})
+OPTIONAL MATCH (d)-[:OCCURRED_IN]->(c:Channel)
+OPTIONAL MATCH (d)<-[pi:PARTICIPATED_IN]-(u:User)
+WITH d, c, collect(DISTINCT { name: coalesce(u.display_name, u.username, u.id), messageCount: pi.message_count }) AS participants
+OPTIONAL MATCH (d)-[:MENTIONS]->(e:Entity)
+WITH d, c, participants, collect(DISTINCT e.name) AS entities
+RETURN d.id AS id, d.title AS title, d.summary AS summary, coalesce(d.topics, []) AS topics,
+       d.sentiment AS sentiment, d.discussion_type AS discussionType, d.resolved AS resolved,
+       d.started_at AS startedAt, d.message_count AS messageCount, d.participant_count AS participantCount,
+       c.id AS channelId, c.name AS channelName, participants, entities
+`;
+
+const VOCAB_TOPICS = `MATCH (t:Topic) RETURN t.name AS name ORDER BY coalesce(t.discussion_count, 0) DESC LIMIT $limit`;
+const VOCAB_ENTITIES = `MATCH (e:Entity) RETURN e.name AS name ORDER BY coalesce(e.mention_count, 0) DESC LIMIT $limit`;
+
+/** Turn plain label strings into a safe Lucene OR query of quoted phrases. */
+function toLucene(terms: string[]): string {
+  return terms
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => `"${t.replace(/[\\"]/g, "\\$&")}"`)
+    .join(" OR ");
+}
+
+function filterParams(f: RetrievalFilters) {
+  return {
+    channelIds: f.channelIds && f.channelIds.length > 0 ? f.channelIds : null,
+    types: f.discussionTypes && f.discussionTypes.length > 0 ? f.discussionTypes : null,
+    since: f.since ?? null,
+  };
+}
+
+function rowToMatch(rec: Neo4jRecord): DiscussionMatch {
+  const emb = rec.has("embedding") ? (rec.get("embedding") as number[] | null) : undefined;
+  return {
+    id: rec.get("id") as string,
+    title: (rec.get("title") as string | null) ?? null,
+    summary: (rec.get("summary") as string | null) ?? null,
+    channelId: (rec.get("channelId") as string | null) ?? null,
+    discussionType: (rec.get("discussionType") as string | null) ?? null,
+    sentiment: (rec.get("sentiment") as string | null) ?? null,
+    resolved: (rec.get("resolved") as boolean | null) ?? null,
+    startedAt: (rec.get("startedAt") as string | null) ?? null,
+    score: rec.has("score") ? Number(rec.get("score")) : 0,
+    ...(emb !== undefined ? { embedding: emb } : {}),
+  };
+}
+
 export class Neo4jGraphStore implements GraphStore {
   readonly #driver: Driver;
   #bootstrapped = false;
@@ -189,6 +298,11 @@ export class Neo4jGraphStore implements GraphStore {
            \`vector.dimensions\`: ${config.embedding.dimensions},
            \`vector.similarity_function\`: 'cosine'
          } }`,
+      );
+      // Fulltext over label text - lexical anchoring for the query pipeline (Část 3).
+      await session.run(
+        `CREATE FULLTEXT INDEX graph_labels_fts IF NOT EXISTS
+         FOR (n:Topic|Entity|Discussion) ON EACH [n.name, n.title]`,
       );
       this.#bootstrapped = true;
     } finally {
@@ -328,6 +442,122 @@ export class Neo4jGraphStore implements GraphStore {
       const nodes = res.records.map((rec) => rec.get("n") as Node);
       const degrees = await this.#degrees(nodes.map((n) => n.elementId));
       return nodes.map((n) => toViewNode(n, degrees.get(n.elementId) ?? 0));
+    } finally {
+      await session.close();
+    }
+  }
+
+  // --- read-only retrieval for querying (Část 3) -------------------------------
+
+  async sampleLabelVocab(limit: number): Promise<LabelVocab> {
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    const lim = { limit: neo4j.int(Math.max(1, limit)) };
+    try {
+      const t = await session.run(VOCAB_TOPICS, lim);
+      const e = await session.run(VOCAB_ENTITIES, lim);
+      const names = (recs: Neo4jRecord[]) =>
+        recs.map((r) => r.get("name") as string | null).filter((s): s is string => Boolean(s));
+      return { topics: names(t.records), entities: names(e.records) };
+    } finally {
+      await session.close();
+    }
+  }
+
+  async searchDiscussionsByVector(
+    vector: Float32Array,
+    k: number,
+    filters: RetrievalFilters,
+  ): Promise<DiscussionMatch[]> {
+    const fp = filterParams(filters);
+    const hasFilter = Boolean(fp.channelIds || fp.types || fp.since);
+    const kk = Math.max(1, k);
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    try {
+      const res = await session.run(VECTOR_SEARCH, {
+        vector: Array.from(vector),
+        fetchK: neo4j.int(hasFilter ? kk * 5 : kk),
+        k: neo4j.int(kk),
+        ...fp,
+      });
+      return res.records.map(rowToMatch);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getDiscussionsByAnchors(
+    topics: string[],
+    entities: string[],
+    limit: number,
+    filters: RetrievalFilters,
+  ): Promise<DiscussionMatch[]> {
+    const lucene = toLucene([...topics, ...entities]);
+    if (!lucene) return [];
+    const fp = filterParams(filters);
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    try {
+      const res = await session.run(ANCHOR_SEARCH, {
+        lucene,
+        anchorNodeLimit: neo4j.int(Math.max(1, limit * 2)),
+        limit: neo4j.int(Math.max(1, limit)),
+        ...fp,
+      });
+      return res.records.map(rowToMatch);
+    } catch (err) {
+      // A malformed Lucene query or a missing fulltext index must not sink the whole request -
+      // anchoring is one of several retrieval signals.
+      console.error(`[query] anchor search failed: ${err instanceof Error ? err.message : String(err)}`);
+      return [];
+    } finally {
+      await session.close();
+    }
+  }
+
+  async expandDiscussions(seedIds: string[], totalLimit: number): Promise<ExpansionMatch[]> {
+    if (seedIds.length === 0) return [];
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    try {
+      const res = await session.run(EXPAND, {
+        seedIds,
+        totalLimit: neo4j.int(Math.max(1, totalLimit)),
+      });
+      return res.records.map((rec) => ({
+        ...rowToMatch(rec),
+        seedId: rec.get("seedId") as string,
+        via: rec.get("via") as ExpansionVia,
+      }));
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getDiscussionCores(ids: string[]): Promise<DiscussionCore[]> {
+    if (ids.length === 0) return [];
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    try {
+      const res = await session.run(DISCUSSION_CORES, { ids });
+      return res.records.map((rec) => {
+        const participants = ((rec.get("participants") as Array<{ name: string | null; messageCount: number | null }>) ?? [])
+          .filter((p) => p && p.name)
+          .map((p) => ({ name: p.name as string, messageCount: p.messageCount ?? null }))
+          .sort((a, b) => (b.messageCount ?? 0) - (a.messageCount ?? 0));
+        return {
+          id: rec.get("id") as string,
+          title: (rec.get("title") as string | null) ?? null,
+          summary: (rec.get("summary") as string | null) ?? null,
+          topics: ((rec.get("topics") as (string | null)[]) ?? []).filter((s): s is string => Boolean(s)),
+          entities: ((rec.get("entities") as (string | null)[]) ?? []).filter((s): s is string => Boolean(s)),
+          sentiment: (rec.get("sentiment") as string | null) ?? null,
+          discussionType: (rec.get("discussionType") as string | null) ?? null,
+          resolved: (rec.get("resolved") as boolean | null) ?? null,
+          startedAt: (rec.get("startedAt") as string | null) ?? null,
+          messageCount: rec.get("messageCount") === null ? null : Number(rec.get("messageCount")),
+          participantCount: rec.get("participantCount") === null ? null : Number(rec.get("participantCount")),
+          channelId: (rec.get("channelId") as string | null) ?? null,
+          channelName: (rec.get("channelName") as string | null) ?? null,
+          participants,
+        };
+      });
     } finally {
       await session.close();
     }
