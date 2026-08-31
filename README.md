@@ -145,6 +145,13 @@ volání (tabulka `llm_calls`) a in-process event bus, který přes WebSocket te
 - **Graf** — vizualizace Neo4j přes sigma.js + forceatlas2 (WebGL): klik na uzel rozbalí
   sousedy, hledání zoomne na uzel, filtr podle kanálu a typu uzlu. Vyžaduje běžící Neo4j
   a proběhlý `graph-write`.
+- **Zeptat se** (Část 4.3) — pole na otázku nad `POST /api/v1/query`: ukotvená odpověď
+  s `confidence` badgem, značky `[D#]` skrolují na karty citací, klik na kartu otevře drawer
+  s detailem diskuze (`GET /api/v1/discussions/:id` — summary, klíčové body, účastníci,
+  rozbalitelné syrové zprávy). „Graf“ v draweru vede na `/graph?focus=<id>` a vycentruje
+  uzel. Volitelné filtry (kanál / typ diskuze / od data), klientská historie dotazů
+  v `localStorage` (re-view bez volání, „zeptat se znovu“ pošle request znovu). Bez
+  streamingu (ten je Část 5).
 
 **Stack:** Svelte 5 (runes) + Vite jako čistá SPA v `web/`, TanStack Query pro server state,
 nativní WebSocket s reconnectem, TailwindCSS v4. Žádné druhé `package.json` — frontend devDeps
@@ -315,8 +322,11 @@ jinak `401`. Platná cesta s nepodporovanou metodou → `405 method_not_allowed`
 | `GET /api/v1/graph/node/:id/neighbors?limit=` | Sousedé uzlu (expand-on-click). `id` je Neo4j `elementId`. |
 | `GET /api/v1/graph/search?q=` | Fulltext přes `Topic.name` / `Entity.name` / `Discussion.title` / `User.username`. |
 | `POST /api/v1/query` | **Část 3 — dotazování.** NL otázka → odpověď syntetizovaná z grafu + citace. Synchronní. `503 graph_unavailable` bez Neo4j, `422` u prázdné otázky. |
+| `GET /api/v1/discussions/:id` | **Část 4.3.** Bundle pro drawer: `discussions_local` řádek + `enrichment` + zprávy. Jen s `[web] enabled`. |
+| `GET /api/v1/graph/node/by-domain-id?label=&id=` | **Část 4.3.** Doménové ID → Neo4j `elementId` pro deep-link z citace do grafu. Jen s `[web] enabled`. |
 
-Endpointy `stream` / `stats` / `ai/calls` / `graph/*` existují jen když `config.toml` má `[web] enabled = true`.
+Endpointy `stream` / `stats` / `ai/calls` / `graph/*` / `discussions/:id` / `graph/node/by-domain-id`
+existují jen když `config.toml` má `[web] enabled = true`.
 
 ### `POST /api/v1/batches` — tvar vstupu
 

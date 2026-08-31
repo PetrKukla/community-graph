@@ -1,7 +1,18 @@
 import { createInfiniteQuery, createQuery } from "@tanstack/svelte-query";
 import { toStore } from "svelte/store";
 import { apiFetch } from "./client";
-import type { GraphView, GraphViewNode, JobDetail, JobSummary, LlmCall, Paginated, Stats } from "../../types";
+import type {
+  DiscussionBundle,
+  GraphView,
+  GraphViewNode,
+  JobDetail,
+  JobSummary,
+  LlmCall,
+  Paginated,
+  QueryAnswer,
+  QueryFilters,
+  Stats,
+} from "../../types";
 
 function qs(params: object): string {
   const search = new URLSearchParams();
@@ -77,6 +88,31 @@ export function fetchNeighbors(id: string, limit = 40): Promise<GraphView> {
 
 export function searchGraph(q: string): Promise<{ nodes: GraphViewNode[] }> {
   return apiFetch<{ nodes: GraphViewNode[] }>(`/api/v1/graph/search${qs({ q })}`);
+}
+
+// --- Část 4.3: dotazování na webu -------------------------------------------
+
+export interface AskPayload {
+  question: string;
+  filters?: QueryFilters;
+}
+
+/** POST /api/v1/query - it's an action, not a cacheable read, so the caller wraps it in a mutation. */
+export function askQuestion(payload: AskPayload): Promise<QueryAnswer> {
+  return apiFetch<QueryAnswer>("/api/v1/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchDiscussionBundle(id: string): Promise<DiscussionBundle> {
+  return apiFetch<DiscussionBundle>(`/api/v1/discussions/${encodeURIComponent(id)}`);
+}
+
+/** Domain id -> Neo4j elementId for the "otevřít v grafu" deep-link. */
+export function resolveGraphNode(label: string, id: string): Promise<{ element_id: string }> {
+  return apiFetch<{ element_id: string }>(`/api/v1/graph/node/by-domain-id${qs({ label, id })}`);
 }
 
 /** Paginated llm_calls history for the AI view (keyset cursor). */

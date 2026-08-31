@@ -11,6 +11,7 @@
   import Jobs from "./views/Jobs.svelte";
   import JobDetail from "./views/JobDetail.svelte";
   import Ai from "./views/Ai.svelte";
+  import Ask from "./views/Ask.svelte";
   import Stats from "./views/Stats.svelte";
   import NotFound from "./views/NotFound.svelte";
 
@@ -24,6 +25,7 @@
 
   const routeList: RouteEntry[] = [
     { path: "/", component: Overview },
+    { path: "/ask", component: Ask },
     { path: "/jobs", component: Jobs },
     { path: "/jobs/:id", component: JobDetail },
     { path: "/ai", component: Ai },

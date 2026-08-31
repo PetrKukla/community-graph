@@ -2,7 +2,7 @@
   import GraphCanvas from "$lib/components/graph/GraphCanvas.svelte";
   import GraphControls from "$lib/components/graph/GraphControls.svelte";
   import NodeDetail from "$lib/components/graph/NodeDetail.svelte";
-  import { graphOverviewQuery, statsQuery } from "$lib/api/queries";
+  import { graphOverviewQuery, resolveGraphNode, statsQuery } from "$lib/api/queries";
   import { ApiError } from "$lib/api/client";
   import type { GraphViewNode } from "../types";
 
@@ -15,6 +15,27 @@
 
   const overview = graphOverviewQuery(() => ({ channel_id: channelId || undefined }));
   const stats = statsQuery();
+
+  // deep-link from a citation ("otevřít v grafu"): /graph?focus=<Discussion.id>
+  let pendingFocusId = $state<string | null>(
+    typeof location !== "undefined" ? new URLSearchParams(location.search).get("focus") : null,
+  );
+  let focusedElementId: string | null = null;
+
+  $effect(() => {
+    const domainId = pendingFocusId;
+    if (!domainId || !canvas || !$overview.data || focusedElementId) return;
+    focusedElementId = "resolving";
+    void resolveGraphNode("Discussion", domainId)
+      .then(({ element_id }) => {
+        focusedElementId = element_id;
+        canvas?.focusNode({ id: element_id, label: "Discussion", caption: "", props: {}, degree: 0 });
+      })
+      .catch(() => {
+        focusedElementId = null;
+        pendingFocusId = null;
+      });
+  });
 
   const channels = $derived(
     ($stats.data?.messages_per_channel ?? []).map((c) => ({ id: c.channel_id, name: c.name ?? c.channel_id })),

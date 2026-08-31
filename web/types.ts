@@ -98,6 +98,66 @@ export interface Stats {
   llm_timeseries: { ts_bucket: string; calls: number; avg_ms: number }[];
 }
 
+// --- Část 4.3: dotazování na webu (POST /api/v1/query + citation drawer) ------
+
+export type QueryConfidence = "high" | "medium" | "low";
+
+export interface QueryCitation {
+  ref: string;
+  discussion_id: string;
+  title: string | null;
+  channel: string | null;
+  discussion_type: string | null;
+  sentiment: string | null;
+  started_at: string | null;
+  score: number;
+  used: boolean;
+}
+
+export interface QueryAnswer {
+  answer: string;
+  confidence: QueryConfidence;
+  citations: QueryCitation[];
+  used_discussion_count: number;
+  intent: string;
+  answer_language: string;
+}
+
+export interface QueryFilters {
+  channel_ids?: string[];
+  discussion_types?: string[];
+  since?: string;
+}
+
+export interface DiscussionEnrichmentView {
+  title: string | null;
+  summary: string | null;
+  topics: string[] | null;
+  entities: { name: string; type: string }[] | null;
+  key_points: string[] | null;
+  sentiment: string | null;
+  sentiment_score: number | null;
+  language: string | null;
+  discussion_type: string | null;
+  resolved: boolean | null;
+  enriched_at: string;
+}
+
+export interface DiscussionBundle {
+  id: string;
+  channel_id: string;
+  status: string;
+  thread_id: string | null;
+  parent_discussion_id: string | null;
+  message_count: number;
+  block_start_at: string;
+  block_end_at: string;
+  continuation_of_discussion_id: string | null;
+  continuation_reason: string | null;
+  enrichment: DiscussionEnrichmentView | null;
+  messages: { id: string; author_id: string; author_label: string; content: string; created_at: string }[];
+}
+
 // --- graph view --------------------------------------------------------------
 
 export interface GraphViewNode {
