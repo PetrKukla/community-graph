@@ -36,16 +36,12 @@ export const queryPlanSchema = z.object({
     .array(z.string())
     .describe("Kandidátní pojmenované entity (produkt, technologie, značka, osoba, místo). Prázdné, pokud žádné."),
   intent: z.enum(QUERY_INTENTS),
-  filter_discussion_types: z
+  preferred_discussion_types: z
     .array(z.enum(DISCUSSION_TYPES))
-    .describe("Omez typ diskuze, jen pokud to otázka jasně vyžaduje (např. troubleshooting -> ['help-request']). Jinak prázdné."),
-  filter_since: z
-    .string()
-    .nullable()
-    .describe("ISO 8601 datum (YYYY-MM-DD), pokud je otázka časově omezená ('minulý týden', 'od ledna'). Jinak null."),
-  filter_usernames: z
-    .array(z.string())
-    .describe("Jména uživatelů, pokud je otázka o konkrétních lidech. Jinak prázdné."),
+    .describe(
+      "Typ(y) diskuze, které k téhle otázce sedí nejlíp (troubleshooting typicky -> ['help-request']). " +
+        "Použije se JEN jako preference při řazení výsledků - nikdy nic nevyřadí. Když si nejsi jistý, nech prázdné.",
+    ),
   answer_language: z
     .string()
     .describe("ISO 639-1 kód jazyka, ve kterém je otázka a ve kterém se má odpovědět (např. 'cs', 'en')."),

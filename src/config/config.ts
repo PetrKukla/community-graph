@@ -57,6 +57,7 @@ const configSchema = z.object({
       weight_anchor: z.number().min(0).default(0.6),
       weight_expansion: z.number().min(0).default(0.4),
       weight_recency: z.number().min(0).default(0.15),
+      weight_type_preference: z.number().min(0).default(0.15),
       opinion_sentiment_diversity: z.boolean().default(true),
       vocab_sample_size: z.number().int().positive().default(60),
     })

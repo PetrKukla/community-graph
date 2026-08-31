@@ -81,7 +81,7 @@ export interface Candidate {
   expansionScore: number; // 0 if not reached via expansion, else the via-weight
   via: ExpansionVia | null;
   recencyBoost: number; // 0..1
-  intentBoost: number; // small additive
+  preferenceBoost: number; // small additive: type preference + resolved-on-troubleshooting
   score: number; // final fused score
   sources: CandidateSource[];
 }

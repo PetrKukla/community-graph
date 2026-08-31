@@ -3,25 +3,29 @@ import { recencyBoost } from "./scoring";
 import type { QueryPlan } from "./schemas";
 import type { Candidate, WorkingCandidate } from "./types";
 
-function intentBoost(plan: QueryPlan, c: WorkingCandidate): number {
+/**
+ * Soft nudges only - none of these can drop a candidate, they just reorder. The planner's
+ * `preferred_discussion_types` lands here (never in a WHERE clause) so a mislabelled discussion
+ * type can't hide the right answer.
+ */
+function preferenceBoost(plan: QueryPlan, c: WorkingCandidate, cfg: Config["query"]): number {
   let b = 0;
-  if (plan.intent === "troubleshooting") {
-    if (c.discussionType === "help-request") b += 0.1;
-    if (c.resolved === true) b += 0.05;
+  if (c.discussionType && (plan.preferred_discussion_types as string[]).includes(c.discussionType)) {
+    b += cfg.weight_type_preference;
   }
-  if (plan.intent === "person-activity" && c.discussionType === "help-request") b += 0.03;
+  if (plan.intent === "troubleshooting" && c.resolved === true) b += 0.05;
   return b;
 }
 
 function finalize(plan: QueryPlan, c: WorkingCandidate, cfg: Config["query"], now: number): Candidate {
   const recency = recencyBoost(c.startedAt, cfg.recency_half_life_days, now);
-  const ib = intentBoost(plan, c);
+  const pref = preferenceBoost(plan, c, cfg);
   const score =
     cfg.weight_vector * c.vecSim +
     cfg.weight_anchor * (c.anchorHit ? 1 : 0) +
     cfg.weight_expansion * c.expansionScore +
     cfg.weight_recency * recency +
-    ib;
+    pref;
   return {
     id: c.id,
     title: c.title,
@@ -36,7 +40,7 @@ function finalize(plan: QueryPlan, c: WorkingCandidate, cfg: Config["query"], no
     expansionScore: c.expansionScore,
     via: c.via,
     recencyBoost: recency,
-    intentBoost: ib,
+    preferenceBoost: pref,
     score,
     sources: [...c.sources],
   };

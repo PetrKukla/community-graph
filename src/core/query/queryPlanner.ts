@@ -10,9 +10,7 @@ export function fallbackPlan(question: string): QueryPlan {
     topics: [],
     entities: [],
     intent: "other",
-    filter_discussion_types: [],
-    filter_since: null,
-    filter_usernames: [],
+    preferred_discussion_types: [],
     answer_language: "cs",
   };
 }

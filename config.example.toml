@@ -49,5 +49,6 @@ weight_vector = 1.0 # váha sémantické (vektorové) podobnosti ve finálním s
 weight_anchor = 0.6 # váha přímého zásahu přes název tématu/entity
 weight_expansion = 0.4 # váha kandidátů získaných grafovou expanzí
 weight_recency = 0.15 # váha recency bonusu
+weight_type_preference = 0.15 # bonus za shodu typu diskuze s preferencí plánovače (měkké, nefiltruje)
 opinion_sentiment_diversity = true # u názorových otázek držet v evidence setu i menšinový sentiment
 vocab_sample_size = 60 # kolik nejčastějších Topic/Entity názvů se dá plánovači jako slovník grafu

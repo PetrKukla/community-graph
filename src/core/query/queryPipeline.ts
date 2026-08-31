@@ -35,12 +35,18 @@ export class GraphUnavailableError extends Error {
   }
 }
 
-function mergeFilters(req: QueryRequest, plan: QueryPlan): RetrievalFilters {
-  const reqTypes = req.filters?.discussionTypes?.filter(Boolean) ?? [];
+/**
+ * Hard retrieval filters come ONLY from the request body - the user's explicit scope. Anything the
+ * planner infers (discussion type, ...) is a soft ranking signal handled in the ranker, never a
+ * WHERE clause, so a wrong guess can't zero out recall.
+ */
+function requestFilters(req: QueryRequest): RetrievalFilters {
+  const types = req.filters?.discussionTypes?.filter(Boolean) ?? [];
+  const channels = req.filters?.channelIds?.filter(Boolean) ?? [];
   return {
-    channelIds: req.filters?.channelIds && req.filters.channelIds.length > 0 ? req.filters.channelIds : null,
-    discussionTypes: reqTypes.length > 0 ? reqTypes : plan.filter_discussion_types.length > 0 ? plan.filter_discussion_types : null,
-    since: req.filters?.since ?? plan.filter_since ?? null,
+    channelIds: channels.length > 0 ? channels : null,
+    discussionTypes: types.length > 0 ? types : null,
+    since: req.filters?.since ?? null,
   };
 }
 
@@ -128,12 +134,29 @@ export async function answerQuestion(req: QueryRequest, deps: QueryDeps): Promis
     timings["plan"] = timings["plan"] ?? 0;
   }
 
-  const filters = mergeFilters(req, plan);
+  const runRetrieval = async (f: RetrievalFilters, suffix: string) => {
+    const { questionVector, candidates } = await clock(`retrieve${suffix}`, retrieve(req.question, plan, f, deps, cfg));
+    await clock(`expand${suffix}`, expand(candidates, questionVector, deps, cfg));
+    return rankCandidates(candidates, plan, cfg);
+  };
 
-  const { questionVector, candidates } = await clock("retrieve", retrieve(req.question, plan, filters, deps, cfg));
-  await clock("expand", expand(candidates, questionVector, deps, cfg));
+  let filters = requestFilters(req);
+  let { ranked, evidence } = await runRetrieval(filters, "");
+  let relaxedNote: string | null = null;
 
-  const { ranked, evidence } = rankCandidates(candidates, plan, cfg);
+  // A request-body type/date filter that returns nothing gets one relaxed retry (channels kept)
+  // so an over-tight user scope degrades to a noted best-effort answer, not a silent blank.
+  if (evidence.length === 0 && (filters.discussionTypes || filters.since)) {
+    const relaxed: RetrievalFilters = { channelIds: filters.channelIds, discussionTypes: null, since: null };
+    const retry = await runRetrieval(relaxed, "-relaxed");
+    if (retry.evidence.length > 0) {
+      ({ ranked, evidence } = retry);
+      filters = relaxed;
+      relaxedNote =
+        "Zadaný filtr (typ diskuze nebo datum) nic nevrátil – odpověď je z nejbližších odpovídajících diskuzí mimo něj.";
+    }
+  }
+
   const evidenceIds = new Set(evidence.map((c) => c.id));
 
   if (evidence.length === 0) {
@@ -158,9 +181,12 @@ export async function answerQuestion(req: QueryRequest, deps: QueryDeps): Promis
 
   let confidence = draft.confidence;
   if (confidence === "high" && items.length < 2) confidence = "medium";
+  if (relaxedNote && confidence === "high") confidence = "medium";
+
+  const notes = [relaxedNote, draft.caveats].filter((s): s is string => Boolean(s));
 
   const answer: QueryAnswer = {
-    answer: draft.caveats ? `${draft.answer}\n\n_Poznámka: ${draft.caveats}_` : draft.answer,
+    answer: notes.length > 0 ? `${draft.answer}\n\n_Poznámka: ${notes.join(" ")}_` : draft.answer,
     confidence,
     citations,
     used_discussion_count: usedCount,

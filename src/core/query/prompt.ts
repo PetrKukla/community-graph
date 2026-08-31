@@ -13,10 +13,9 @@ Vrať:
 - topics / entities: kandidátní názvy k dohledání v grafu. Když něco ze slovníku sedí, použij
   přesně ten tvar. Nevymýšlej entity, které v otázce nejsou.
 - intent: o jaký druh otázky jde.
-- filter_discussion_types: omez typ diskuze jen když to otázka jasně vyžaduje (troubleshooting
-  typicky -> ["help-request"]). Jinak nech prázdné.
-- filter_since: ISO datum, pokud je otázka časově omezená, jinak null.
-- filter_usernames: jména, pokud je otázka o konkrétních lidech, jinak prázdné.
+- preferred_discussion_types: typ(y) diskuze, které k otázce nejlíp sedí (troubleshooting
+  typicky -> ["help-request"]). Slouží JEN k lepšímu řazení, NEfiltruje - když si nejsi jistý,
+  nech prázdné. Časové ani uživatelské omezení neřeš, to zadává uživatel zvlášť.
 - answer_language: ISO 639-1 kód jazyka otázky (obvykle "cs").`;
 
 export function buildPlannerUserPrompt(question: string, vocab: LabelVocab): string {
