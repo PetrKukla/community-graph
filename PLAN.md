@@ -9,7 +9,7 @@ Práce je rozdělená do pěti částí:
 | **[1 — Generace grafu](#část-1--generace-grafu)** | ingest → clustering → AI enrichment → zápis do Neo4j | navrženo (většina tohoto dokumentu) |
 | **[2 — Webová aplikace a zobrazení grafu](#část-2--webová-aplikace-a-zobrazení-grafu)** | read-only realtime dashboard + vizualizace grafu | navrženo, detail v [`plans/WEBAPP.md`](plans/WEBAPP.md) |
 | **[3 — Dotazování nad grafem](#část-3--dotazování-nad-grafem-querying)** | NL dotaz → odpověď syntetizovaná z grafu (jen backend API) | **implementováno** (`POST /api/v1/query`); návrh v [`plans/QUERYING.md`](plans/QUERYING.md) |
-| **[4 — Propojení](#část-4--propojení)** | webové dotazovací UI + sjednocení částí do jednoho běhu | **zatím nenavrženo** |
+| **[4 — Propojení](#část-4--propojení)** | slovník jmen + sjednocený běh pipeline + webové dotazovací UI | navrženo, detail v [`plans/INTEGRATION.md`](plans/INTEGRATION.md) |
 | **[5 — Budoucí vylepšení](#část-5--budoucí-vylepšení)** | streaming odpovědí a další nadstavby | **zatím nenavrženo** |
 
 ---
@@ -78,7 +78,7 @@ Robustní pipeline: přijme batch Discord zpráv přes HTTP → rozdělí je do 
 - Query/ask endpoint — jen placeholder `POST /api/v1/query` → `501` (řeší [Část 3](#část-3--dotazování-nad-grafem-querying)).
 - Synchronizace editů/mazání zpráv z Discordu — jen batch-historické ingesty, ne live sync. Známé omezení.
 - `(User)-[:MENTIONED]->(User)` sociální graf — nápad do budoucna, nestavět teď.
-- Automatické zřetězení tří kroků do jednoho „full pipeline" volání — odloženo, dokud nebudou kroky ověřené.
+- Automatické zřetězení kroků do jednoho „full pipeline" volání — přesunuto do [Části 4](#část-4--propojení) (`plans/INTEGRATION.md`, §4.2).
 
 ### 1.2 Klíčová rozhodnutí
 
@@ -456,7 +456,7 @@ Milníky odpovídají třem krokům (a/b/c) — každý končí funkčním, ruč
 - **M4 — Krok (c): Neo4j schéma + idempotentní writer + `/graph-write`.** `GraphStore.ts`, `Neo4jGraphStore.ts` (bootstrap constraints/vektorového indexu + MERGE queries), `discussionWriter.ts` (vč. `INTERESTED_IN` agregace User→Topic a `entityCanonicalizer.ts` proti Neo4j indexu), `graphWriteStage.ts`, `jobRunner.ts` + typ `graph_write`, `src/http/routes/graphWrite.ts`, dokončení `neo4j` service v `docker-compose.yml` (volume + healthcheck).
   *Test:* na kanálu obohaceném v M3 `POST /graph-write` → Neo4j Browser dotazy na `Discussion`/`User`/`Topic`/`INTERESTED_IN`.
 - **M5 — Korektnost inkrementálních updatů napříč všemi třemi kroky.** `replyReassignment.ts` o cross-batch/cross-run větev (krok 3a/3b), `continuationInference.ts` (sémantické `CONTINUATION_OF` přes Neo4j vektorový index), `checkpointRepository.ts` (block-closure logika). Integrační testy dvou po sobě jdoucích cyklů `clusterize → enrich → graph-write`, vč. reply o několik dní později do už zapsané diskuze.
-- **M6 — docker-compose + Dockerfile + e2e smoke test.** Finální `docker/Dockerfile` (multi-stage Bun build), `docker-compose.yml`, `.env.example`, README s instrukcemi, `tests/integration/ingestion.integration.test.ts` (prochází všechny čtyři endpointy v pořadí). Automatické zřetězení do jednoho „spusť všechno" volání je vědomě mimo scope — kroky se spouští ručně / orchestrací zvenčí.
+- **M6 — docker-compose + Dockerfile + e2e smoke test.** Finální `docker/Dockerfile` (multi-stage Bun build), `docker-compose.yml`, `.env.example`, README s instrukcemi, `tests/integration/ingestion.integration.test.ts` (prochází všechny čtyři endpointy v pořadí). Automatické zřetězení do jednoho „spusť všechno" volání je mimo scope Části 1 — řeší [Část 4](#část-4--propojení) (`plans/INTEGRATION.md`, §4.2).
 
 ### 1.11 Verifikace / testovací plán
 
@@ -518,11 +518,11 @@ Samostatná fáze navazující na M6 — **čistě backend**: jeden nový synchr
 
 ## Část 4 — Propojení
 
-**Tato část zatím není navržená.** Sjednocení hotových částí 1–3 do plynulého celku:
+Sjednocení hotových částí 1–3 do plynulého celku. Tři nezávislé slice, plná specifikace v [`plans/INTEGRATION.md`](plans/INTEGRATION.md):
 
-- **Webové dotazovací rozhraní** — pole na dotaz / chat v dashboardu z [Části 2](#část-2--webová-aplikace-a-zobrazení-grafu) nad API z [Části 3](#část-3--dotazování-nad-grafem-querying): odeslání otázky, zobrazení odpovědi, klikací citace vedoucí na detail diskuze a na uzel v grafové vizualizaci; historie dotazů.
-- **Zřetězení pipeline** — volitelné „spusť všechno" (ingest → clusterize → enrich → graph-write) jako jedna orchestrace, dosud vědomě odložené (viz [§1.1](#11-cíl-a-rozsah), M6).
-- Detail vznikne až po dokončení částí 2 a 3.
+- **Slovník jmen** — názvy uživatelů/kanálů/serveru se posílají zvlášť a přírůstkově přes `POST /api/v1/dictionary`, ne s každou dávkou zpráv; dávky nesou jen ID. Jediný zdroj pravdy o názvech je SQLite, propagace do Neo4j vč. nového uzlu `Guild`. Detail v [`plans/DICTIONARY.md`](plans/DICTIONARY.md).
+- **Sjednocený běh pipeline** — `POST /api/v1/pipeline` přijme dávku a jedním jobem provede ingest → clusterize → enrich → graph-write. Granulární endpointy zůstávají. Nahrazuje dosud odložené „spusť všechno" (viz [§1.1](#11-cíl-a-rozsah), M6).
+- **Webové dotazovací rozhraní** — pohled `/ask` v dashboardu z [Části 2](#část-2--webová-aplikace-a-zobrazení-grafu) nad API z [Části 3](#část-3--dotazování-nad-grafem-querying): odeslání otázky, ukotvená odpověď, klikací citace vedoucí na detail diskuze a na uzel v grafové vizualizaci, klientská historie dotazů.
 
 ---
 
