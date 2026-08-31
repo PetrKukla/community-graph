@@ -2,13 +2,15 @@
 
 Dokerizovaná služba, která převádí historii Discord komunity (kanály, zprávy, uživatele) na inkrementálně aktualizovatelný knowledge graph, staví nad ním realtime přehled a — výhledově — dotazování v přirozeném jazyce.
 
-Práce je rozdělená do tří částí:
+Práce je rozdělená do pěti částí:
 
 | Část | Náplň | Stav |
 |---|---|---|
 | **[1 — Generace grafu](#část-1--generace-grafu)** | ingest → clustering → AI enrichment → zápis do Neo4j | navrženo (většina tohoto dokumentu) |
 | **[2 — Webová aplikace a zobrazení grafu](#část-2--webová-aplikace-a-zobrazení-grafu)** | read-only realtime dashboard + vizualizace grafu | navrženo, detail v [`plans/WEBAPP.md`](plans/WEBAPP.md) |
-| **[3 — Dotazování nad grafem](#část-3--dotazování-nad-grafem-querying)** | NL dotaz → odpověď syntetizovaná z grafu | **zatím nenavrženo** |
+| **[3 — Dotazování nad grafem](#část-3--dotazování-nad-grafem-querying)** | NL dotaz → odpověď syntetizovaná z grafu (jen backend API) | **implementováno** (`POST /api/v1/query`); návrh v [`plans/QUERYING.md`](plans/QUERYING.md) |
+| **[4 — Propojení](#část-4--propojení)** | webové dotazovací UI + sjednocení částí do jednoho běhu | **zatím nenavrženo** |
+| **[5 — Budoucí vylepšení](#část-5--budoucí-vylepšení)** | streaming odpovědí a další nadstavby | **zatím nenavrženo** |
 
 ---
 
@@ -501,10 +503,34 @@ Lehké **read-only realtime** webové rozhraní nad běžící službou Části 
 
 ## Část 3 — Dotazování nad grafem (querying)
 
-**Tato část zatím není navržená.** Detailní návrh — retrieval strategie nad grafem + vektorovým indexem, ranking relevantních clusterů, prompt pro syntézu odpovědi, tvar API — vznikne samostatně až po dokončení Části 2.
+Samostatná fáze navazující na M6 — **čistě backend**: jeden nový synchronní endpoint `POST /api/v1/query`, který nahradí dosavadní `501` placeholder. Uživatel položí otázku v přirozeném jazyce, systém ji zpracuje kombinací grafu, vektorového indexu a LLM, a vrátí odpověď syntetizovanou z relevantních diskuzí i s citacemi zdrojů.
 
-Co je ze zadání jisté už teď:
+- **Cíl:** graf jako „ultimátní databáze znalostí komunity" (viz příklady „Jaký mají lidé názor na Smarty?" a „Na Linuxu mi nefunguje zvuk po aktualizaci" v [Původním zadání](#původní-zadání-verbatim)).
+- **Přístup:** pětifázová pipeline v jednom requestu — porozumění dotazu (LLM) → retrieval (vektorový index + kotvení na `Topic`/`Entity`) → grafová expanze (`CONTINUATION_OF` / sdílené téma / `COOCCURS_WITH`) → sestavení kontextu (shrnutí + drill-down do syrových zpráv v SQLite) → ukotvená syntéza odpovědi (LLM). GraphRAG styl inspirovaný `graphify query`.
+- **Napojení na AI adapter:** obě LLM volání jdou přes stávající port `LLMProvider.generateStructured` (tentýž `[llm]` adapter jako enrichment) — **beze změny portu**. Embedding dotazu přes stávající `EmbeddingProvider`.
+- **Mimo rozsah této části:** webové dotazovací UI (→ Část 4), streaming odpovědí (→ Část 5).
 
-- **Cíl:** graf jako „ultimátní databáze znalostí komunity" — položit dotaz v přirozeném jazyce a dostat odpověď syntetizovanou z relevantních diskuzí (viz příklady „Jaký mají lidé názor na Smarty?" a „Na Linuxu mi nefunguje zvuk po aktualizaci" v [Původním zadání](#původní-zadání-verbatim)).
-- **Co pro to Část 1 už připravuje:** Discussion-level embeddingy + Neo4j vektorový index (sémantické vyhledávání diskuzí); `discussion_type`/`resolved` (filtr na help-request clustery); `Topic`/`Entity` + `COOCCURS_WITH` (související témata); `CONTINUATION_OF` (vývoj diskuze v čase); syrové zprávy a data uživatelů v SQLite pro dotažení detailů při odpovědi, aby graf zůstal štíhlý.
-- **Placeholder:** `POST /api/v1/query` vrací `501 Not Implemented`, dokud tato část nevznikne.
+**Plná specifikace vč. mechanik dotazování nad Neo4j, tvaru API, rozšíření portu `GraphStore`, konfigurace `[query]` a milníků Q0–Q5: [`plans/QUERYING.md`](plans/QUERYING.md).**
+
+**Stav:** implementováno v `src/core/query/*` (pipeline), `src/adapters/graph/Neo4jGraphStore.ts` (read metody + fulltext index), `src/http/routes/query.ts` (endpoint), `[query]` v `config.toml`. Test: `tests/query/queryPipeline.test.ts`. Popis a příklad v `README.md`.
+
+---
+
+## Část 4 — Propojení
+
+**Tato část zatím není navržená.** Sjednocení hotových částí 1–3 do plynulého celku:
+
+- **Webové dotazovací rozhraní** — pole na dotaz / chat v dashboardu z [Části 2](#část-2--webová-aplikace-a-zobrazení-grafu) nad API z [Části 3](#část-3--dotazování-nad-grafem-querying): odeslání otázky, zobrazení odpovědi, klikací citace vedoucí na detail diskuze a na uzel v grafové vizualizaci; historie dotazů.
+- **Zřetězení pipeline** — volitelné „spusť všechno" (ingest → clusterize → enrich → graph-write) jako jedna orchestrace, dosud vědomě odložené (viz [§1.1](#11-cíl-a-rozsah), M6).
+- Detail vznikne až po dokončení částí 2 a 3.
+
+---
+
+## Část 5 — Budoucí vylepšení
+
+**Zatím nenavrženo.** Nadstavby nad funkčním celkem, žádná z nich není nutná pro splnění zadání:
+
+- **Streaming odpovědí** na `/api/v1/query` (SSE token po tokenu) + nová port metoda `LLMProvider.generateStreamText` a její implementace ve všech třech adaptérech.
+- Multi-turn konverzace / paměť kontextu, cache odpovědí, feedback smyčka pro doladění rankingu.
+- `(User)-[:MENTIONED]->(User)` sociální graf, live sync editů/mazání zpráv z Discordu (viz [§1.1](#11-cíl-a-rozsah)).
+- Škálovací kroky: Redis/BullMQ pro job frontu, druhá vektorová DB, apod.
