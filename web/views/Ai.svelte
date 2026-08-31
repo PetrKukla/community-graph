@@ -6,7 +6,7 @@
   import RelativeTime from "$lib/components/RelativeTime.svelte";
   import { statsQuery, aiCallsQuery } from "$lib/api/queries";
   import { liveLlmCalls } from "$lib/realtime/live.svelte";
-  import { formatMs } from "$lib/labels";
+  import { formatMs, formatTokens, tokensTitle } from "$lib/labels";
 
   const stats = statsQuery();
 
@@ -95,7 +95,7 @@
               <th class="py-2 pr-4 font-medium">Model</th>
               <th class="py-2 pr-4 font-medium">Kontext</th>
               <th class="py-2 pr-4 font-medium">Doba</th>
-              <th class="py-2 pr-4 font-medium">Tokeny</th>
+              <th class="py-2 pr-4 font-medium" title="vstup / výstup">Tokeny</th>
               <th class="py-2 font-medium">Stav</th>
             </tr>
           </thead>
@@ -108,10 +108,11 @@
                   {call.context ?? "—"}
                 </td>
                 <td class="py-2 pr-4 tabular-nums">{formatMs(call.duration_ms)}</td>
-                <td class="py-2 pr-4 tabular-nums text-muted-foreground">
-                  {call.prompt_tokens != null || call.completion_tokens != null
-                    ? `${call.prompt_tokens ?? "?"} / ${call.completion_tokens ?? "?"}`
-                    : "—"}
+                <td
+                  class="py-2 pr-4 tabular-nums text-muted-foreground"
+                  title={tokensTitle(call.prompt_tokens, call.completion_tokens)}
+                >
+                  {formatTokens(call.prompt_tokens, call.completion_tokens)}
                 </td>
                 <td class="py-2">
                   <span class:text-success={call.status === "ok"} class:text-destructive={call.status === "error"}>

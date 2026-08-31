@@ -1,4 +1,4 @@
-import type { Driver, Node, Relationship } from "neo4j-driver";
+import neo4j, { type Driver, type Node, type Relationship } from "neo4j-driver";
 import { config } from "../../config/config";
 import type {
   GraphOverviewOptions,
@@ -266,7 +266,8 @@ export class Neo4jGraphStore implements GraphStore {
          MATCH (d)-[r]-(n)
          WITH d, r, n LIMIT $relLimit
          RETURN d, r, n`,
-        { channelId: options.channelId ?? null, discussionLimit, relLimit },
+        // Cypher LIMIT rejects float params, and the driver serialises plain numbers as floats
+        { channelId: options.channelId ?? null, discussionLimit: neo4j.int(discussionLimit), relLimit: neo4j.int(relLimit) },
       );
 
       const nodes = new Map<string, Node>();
@@ -292,7 +293,7 @@ export class Neo4jGraphStore implements GraphStore {
         `MATCH (n) WHERE elementId(n) = $id
          MATCH (n)-[r]-(m)
          RETURN n, r, m LIMIT $limit`,
-        { id, limit: Math.max(1, Math.min(limit, 200)) },
+        { id, limit: neo4j.int(Math.max(1, Math.min(limit, 200))) },
       );
       const nodes = new Map<string, Node>();
       const edges = new Map<string, Relationship>();
@@ -322,7 +323,7 @@ export class Neo4jGraphStore implements GraphStore {
             OR (n:Discussion AND n.title IS NOT NULL AND toLower(n.title) CONTAINS $q)
             OR (n:User AND n.username IS NOT NULL AND toLower(n.username) CONTAINS $q)
          RETURN n LIMIT $limit`,
-        { q, limit: Math.max(1, Math.min(limit, 50)) },
+        { q, limit: neo4j.int(Math.max(1, Math.min(limit, 50))) },
       );
       const nodes = res.records.map((rec) => rec.get("n") as Node);
       const degrees = await this.#degrees(nodes.map((n) => n.elementId));

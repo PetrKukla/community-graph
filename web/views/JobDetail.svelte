@@ -5,7 +5,7 @@
   import JobStatusBadge from "$lib/components/JobStatusBadge.svelte";
   import RelativeTime from "$lib/components/RelativeTime.svelte";
   import { jobQuery, aiCallsQuery } from "$lib/api/queries";
-  import { jobTypeLabel, formatMs } from "$lib/labels";
+  import { jobTypeLabel, formatMs, formatTokens, tokensTitle } from "$lib/labels";
 
   const { params }: { params?: { id?: string } } = $props();
 
@@ -85,7 +85,7 @@
                   <th class="py-2 pr-4 font-medium">Model</th>
                   <th class="py-2 pr-4 font-medium">Kontext</th>
                   <th class="py-2 pr-4 font-medium">Doba</th>
-                  <th class="py-2 pr-4 font-medium">Tokeny</th>
+                  <th class="py-2 pr-4 font-medium" title="vstup / výstup">Tokeny</th>
                   <th class="py-2 font-medium">Stav</th>
                 </tr>
               </thead>
@@ -95,10 +95,11 @@
                     <td class="py-2 pr-4 font-medium">{call.model}</td>
                     <td class="py-2 pr-4 text-muted-foreground">{call.context ?? "—"}</td>
                     <td class="py-2 pr-4 tabular-nums">{formatMs(call.duration_ms)}</td>
-                    <td class="py-2 pr-4 tabular-nums text-muted-foreground">
-                      {call.prompt_tokens != null || call.completion_tokens != null
-                        ? `${call.prompt_tokens ?? "?"} / ${call.completion_tokens ?? "?"}`
-                        : "—"}
+                    <td
+                      class="py-2 pr-4 tabular-nums text-muted-foreground"
+                      title={tokensTitle(call.prompt_tokens, call.completion_tokens)}
+                    >
+                      {formatTokens(call.prompt_tokens, call.completion_tokens)}
                     </td>
                     <td class="py-2">
                       <span class:text-success={call.status === "ok"} class:text-destructive={call.status === "error"}>
