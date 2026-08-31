@@ -18,6 +18,7 @@ import { streamRoute } from "./routes/stream";
 import { statsRoute } from "./routes/stats";
 import { aiCallsRoute } from "./routes/aiCalls";
 import { graphRoute } from "./routes/graph";
+import { webAskRoute } from "./routes/webAsk";
 
 export const app = new Hono();
 
@@ -49,6 +50,7 @@ if (config.web.enabled) {
   api.route("/", statsRoute);
   api.route("/", aiCallsRoute);
   api.route("/", graphRoute);
+  api.route("/", webAskRoute);
 }
 
 app.route("/api/v1", api);

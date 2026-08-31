@@ -71,6 +71,8 @@ export interface GraphStore {
   nodeNeighbors(id: string, limit: number): Promise<GraphView>;
   /** Candidate nodes matching a free-text query (Topic/Entity name, Discussion title, username). */
   searchNodes(query: string, limit: number): Promise<GraphViewNode[]>;
+  /** Neo4j elementId of the node with the given label and domain `id` property, or null. For deep-links. */
+  nodeIdByDomainId(label: string, domainId: string): Promise<string | null>;
 
   // --- read-only retrieval for querying (Část 3) ---------------------------
 

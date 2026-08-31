@@ -504,6 +504,20 @@ export class Neo4jGraphStore implements GraphStore {
     }
   }
 
+  async nodeIdByDomainId(label: string, domainId: string): Promise<string | null> {
+    if (!KNOWN_LABELS.includes(label)) return null;
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    try {
+      const res = await session.run(
+        `MATCH (n:${label} {id: $domainId}) RETURN elementId(n) AS elementId LIMIT 1`,
+        { domainId },
+      );
+      return (res.records[0]?.get("elementId") as string | undefined) ?? null;
+    } finally {
+      await session.close();
+    }
+  }
+
   // --- read-only retrieval for querying (Část 3) -------------------------------
 
   async sampleLabelVocab(limit: number): Promise<LabelVocab> {
