@@ -11,10 +11,10 @@
 
   const nav = [
     { href: "/", label: "Přehled" },
-    { href: "/ask", label: "Zeptat se" },
     { href: "/jobs", label: "Jobs" },
     { href: "/ai", label: "LLM volání" },
     { href: "/stats", label: "Statistiky" },
+    { href: "/ask", label: "Zeptat se" },
     { href: "/graph", label: "Graf" },
   ];
 
