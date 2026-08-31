@@ -8,7 +8,9 @@ import { eq } from "drizzle-orm";
 process.env.SQLITE_PATH = join(tmpdir(), `cg-dict-${randomUUID()}.sqlite`);
 
 const { db, runMigrations } = await import("../../src/db/sqlite/client");
-const { syncDictionary, loadDictionaryNames } = await import("../../src/db/sqlite/repositories/dictionaryRepository");
+const { syncDictionary, loadDictionaryNames, loadAllDictionaryNames } = await import(
+  "../../src/db/sqlite/repositories/dictionaryRepository"
+);
 const { ingestBatch } = await import("../../src/db/sqlite/repositories/ingestRepository");
 const { guilds, channels, users } = await import("../../src/db/sqlite/schema");
 
@@ -77,12 +79,33 @@ describe("syncDictionary", () => {
     });
 
     const names = loadDictionaryNames({ guildId: "lg1", channelIds: ["lc1"], userIds: ["lu1"] });
-    expect(names.guild).toEqual({ id: "lg1", name: "Loaded" });
+    expect(names.guilds).toEqual([{ id: "lg1", name: "Loaded" }]);
     expect(names.channels).toEqual([{ id: "lc1", name: "chan" }]);
     expect(names.users).toEqual([{ id: "lu1", username: "u", displayName: "U" }]);
 
     // no changed ids -> empty shape
     expect(loadDictionaryNames({ guildId: null, channelIds: [], userIds: [] })).toEqual({});
+  });
+
+  test("loadAllDictionaryNames returns every named row (for graph-resync)", () => {
+    syncDictionary({
+      guild: { id: "ag1", name: "All" },
+      channels: [
+        { id: "ac1", name: "named" },
+        { id: "ac2" }, // no name -> excluded
+      ],
+      users: [
+        { id: "au1", username: "named-user" },
+        { id: "au2" }, // no names -> excluded
+      ],
+    });
+
+    const all = loadAllDictionaryNames();
+    expect(all.guilds).toEqual(expect.arrayContaining([{ id: "ag1", name: "All" }]));
+    expect(all.channels?.map((c) => c.id)).toContain("ac1");
+    expect(all.channels?.map((c) => c.id)).not.toContain("ac2");
+    expect(all.users?.map((u) => u.id)).toContain("au1");
+    expect(all.users?.map((u) => u.id)).not.toContain("au2");
   });
 
   test("ingest keeps names from the dictionary and only widens the seen-window", () => {

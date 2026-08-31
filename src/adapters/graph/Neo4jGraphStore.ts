@@ -117,9 +117,10 @@ UNWIND $channels AS ch
   SET n.name = ch.name
   RETURN count(n) AS touched
 `;
-const SYNC_GUILD_NAME = `
-MATCH (n:Guild {id: $guild.id})
-  SET n.name = $guild.name
+const SYNC_GUILD_NAMES = `
+UNWIND $guilds AS g
+  MATCH (n:Guild {id: g.id})
+  SET n.name = g.name
   RETURN count(n) AS touched
 `;
 
@@ -376,25 +377,20 @@ export class Neo4jGraphStore implements GraphStore {
   async syncDictionaryNames(names: DictionaryNames): Promise<{ updatedNodes: number }> {
     const users = names.users ?? [];
     const channels = names.channels ?? [];
-    const guild = names.guild ?? null;
-    if (users.length === 0 && channels.length === 0 && !guild) return { updatedNodes: 0 };
+    const guilds = names.guilds ?? [];
+    if (users.length === 0 && channels.length === 0 && guilds.length === 0) return { updatedNodes: 0 };
 
     const session = this.#driver.session();
     try {
       return await session.executeWrite(async (tx) => {
         let updated = 0;
-        if (users.length > 0) {
-          const res = await tx.run(SYNC_USER_NAMES, { users });
+        const run = async (cypher: string, params: Record<string, unknown>) => {
+          const res = await tx.run(cypher, params);
           updated += Number(res.records[0]?.get("touched") ?? 0);
-        }
-        if (channels.length > 0) {
-          const res = await tx.run(SYNC_CHANNEL_NAMES, { channels });
-          updated += Number(res.records[0]?.get("touched") ?? 0);
-        }
-        if (guild) {
-          const res = await tx.run(SYNC_GUILD_NAME, { guild });
-          updated += Number(res.records[0]?.get("touched") ?? 0);
-        }
+        };
+        if (users.length > 0) await run(SYNC_USER_NAMES, { users });
+        if (channels.length > 0) await run(SYNC_CHANNEL_NAMES, { channels });
+        if (guilds.length > 0) await run(SYNC_GUILD_NAMES, { guilds });
         return { updatedNodes: updated };
       });
     } finally {

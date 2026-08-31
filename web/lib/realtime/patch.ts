@@ -56,5 +56,10 @@ export function applyEvent(qc: QueryClient, { event, data }: BusEnvelope): void 
       );
       break;
     }
+    case "dictionary.synced": {
+      // names on User / Channel / Guild nodes may have changed - refetch graph views
+      qc.invalidateQueries({ queryKey: ["graph"] });
+      break;
+    }
   }
 }

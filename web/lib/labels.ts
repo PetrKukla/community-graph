@@ -4,6 +4,7 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
   cluster: "clusterizace",
   enrich: "enrichment",
   graph_write: "zápis do grafu",
+  name_sync: "synchronizace názvů",
 };
 
 export function jobTypeLabel(type: string): string {

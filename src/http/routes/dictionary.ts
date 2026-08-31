@@ -4,6 +4,7 @@ import { config } from "../../config/config";
 import { getGraphStore, isNeo4jConfigured } from "../../adapters/graph";
 import { bus } from "../../core/events/bus";
 import {
+  loadAllDictionaryNames,
   loadDictionaryNames,
   syncDictionary,
   type DictionaryChangedIds,
@@ -113,3 +114,18 @@ async function propagateNames(changed: DictionaryChangedIds): Promise<GraphPropa
 }
 
 dictionaryRoute.all("/dictionary", methodNotAllowed);
+
+/**
+ * Recovery after a Neo4j outage or a manual SQLite edit: re-push every non-null name in SQLite
+ * onto the matching existing graph nodes via a name_sync job.
+ */
+dictionaryRoute.post("/dictionary/graph-resync", (c) => {
+  if (!isNeo4jConfigured()) {
+    return c.json({ error: "graph_unavailable", detail: "Neo4j není nakonfigurováno (NEO4J_PASSWORD)." }, 503);
+  }
+  const jobId = createJob("name_sync", null);
+  runNameSyncJob(jobId, loadAllDictionaryNames());
+  return c.json({ job_id: jobId, type: "name_sync", status: "queued" }, 202);
+});
+
+dictionaryRoute.all("/dictionary/graph-resync", methodNotAllowed);

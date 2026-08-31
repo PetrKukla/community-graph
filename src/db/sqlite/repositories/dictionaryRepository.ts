@@ -1,4 +1,4 @@
-import { inArray } from "drizzle-orm";
+import { inArray, isNotNull, or } from "drizzle-orm";
 import { db } from "../client";
 import { guilds, channels, users } from "../schema";
 import type { DictionaryNames } from "../../../core/ports/GraphStore";
@@ -184,7 +184,7 @@ export function loadDictionaryNames(changed: DictionaryChangedIds): DictionaryNa
 
   if (changed.guildId) {
     const g = db.select({ name: guilds.name }).from(guilds).where(inArray(guilds.id, [changed.guildId])).get();
-    out.guild = { id: changed.guildId, name: g?.name ?? null };
+    out.guilds = [{ id: changed.guildId, name: g?.name ?? null }];
   }
   if (changed.channelIds.length > 0) {
     out.channels = db
@@ -201,4 +201,17 @@ export function loadDictionaryNames(changed: DictionaryChangedIds): DictionaryNa
       .all();
   }
   return out;
+}
+
+/** Every row in SQLite that has at least one name - the input for /dictionary/graph-resync (D4). */
+export function loadAllDictionaryNames(): DictionaryNames {
+  return {
+    guilds: db.select({ id: guilds.id, name: guilds.name }).from(guilds).where(isNotNull(guilds.name)).all(),
+    channels: db.select({ id: channels.id, name: channels.name }).from(channels).where(isNotNull(channels.name)).all(),
+    users: db
+      .select({ id: users.id, username: users.username, displayName: users.displayName })
+      .from(users)
+      .where(or(isNotNull(users.username), isNotNull(users.displayName)))
+      .all(),
+  };
 }

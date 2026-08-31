@@ -37,7 +37,7 @@ export interface GraphOverviewOptions {
 
 /** Name changes to push onto nodes that already exist in the graph (Část 4.1). */
 export interface DictionaryNames {
-  guild?: { id: string; name: string | null };
+  guilds?: { id: string; name: string | null }[];
   channels?: { id: string; name: string | null }[];
   users?: { id: string; username: string | null; displayName: string | null }[];
 }

@@ -3,7 +3,7 @@
  * Kept in sync by hand - the backend is the source of truth.
  */
 
-export type JobType = "cluster" | "enrich" | "graph_write";
+export type JobType = "cluster" | "enrich" | "graph_write" | "name_sync";
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
 export interface JobSummary {
@@ -155,12 +155,20 @@ export interface StatsTickEvent {
   totals: StatsTotals;
 }
 
+export interface DictionarySyncedEvent {
+  guild_changed: boolean;
+  channel_ids: string[];
+  user_ids: string[];
+  at: string;
+}
+
 export interface BusEventMap {
   "job.created": JobCreatedEvent;
   "job.updated": JobUpdatedEvent;
   "llm.call": LlmCallEvent;
   "ingest.batch": IngestBatchEvent;
   "stats.tick": StatsTickEvent;
+  "dictionary.synced": DictionarySyncedEvent;
 }
 
 export type BusEventName = keyof BusEventMap;

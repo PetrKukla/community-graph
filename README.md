@@ -294,7 +294,8 @@ jinak `401`. Platná cesta s nepodporovanou metodou → `405 method_not_allowed`
 | Endpoint | Co dělá |
 |---|---|
 | `POST /api/v1/batches` | Uloží dávku zpráv do SQLite (dedup podle `id`). **Jen ID** — názvová pole → `400`. Nic dalšího nespouští. `202` |
-| `POST /api/v1/dictionary` | **Část 4.1 — slovník jmen.** Přírůstkový upsert názvů guildy/kanálů/uživatelů do SQLite. `400` u prázdného těla / neznámých klíčů / přes limit. |
+| `POST /api/v1/dictionary` | **Část 4.1 — slovník jmen.** Přírůstkový upsert názvů guildy/kanálů/uživatelů do SQLite + propagace do Neo4j. `400` u prázdného těla / neznámých klíčů / přes limit. |
+| `POST /api/v1/dictionary/graph-resync` | Znovu nasype všechny ne-`null` názvy ze SQLite do existujících Neo4j uzlů (job `name_sync`). `202` s `job_id`, `503` bez Neo4j. |
 | `POST /api/v1/channels/:id/clusterize` | Spustí krok 1 na pozadí. `202` s `job_id` |
 | `POST /api/v1/channels/:id/enrich` | Spustí krok 2. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id` |
 | `POST /api/v1/channels/:id/graph-write` | Spustí krok 3. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id` |
