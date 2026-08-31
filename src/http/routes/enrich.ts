@@ -16,7 +16,7 @@ enrichRoute.post("/channels/:id/enrich", async (c) => {
     return c.json({ error: "invalid_request", details: parsed.error.flatten() }, 400);
   }
 
-  const jobId = createJob("enrich", channelId);
+  const jobId = createJob("enrich", channelId, { maxDiscussions: parsed.data.max_discussions });
   runEnrichJob(jobId, channelId, { maxDiscussions: parsed.data.max_discussions });
   return c.json({ job_id: jobId, type: "enrich", status: "queued" }, 202);
 });

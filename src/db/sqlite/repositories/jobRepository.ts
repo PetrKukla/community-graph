@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { bus } from "../../../core/events/bus";
 import { db } from "../client";
@@ -7,14 +7,23 @@ import { jobs } from "../schema";
 export type JobType = "cluster" | "enrich" | "graph_write" | "name_sync" | "pipeline";
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
-export function createJob(type: JobType, channelId: string | null): string {
+/**
+ * @param params inputs needed to re-dispatch this job after an app restart (stage options,
+ *   name_sync payload). Kept small; not sent on the bus.
+ */
+export function createJob(type: JobType, channelId: string | null, params?: Record<string, unknown>): string {
   const id = randomUUID();
   const now = new Date().toISOString();
   db.insert(jobs)
-    .values({ id, type, status: "pending", channelId, createdAt: now, updatedAt: now })
+    .values({ id, type, status: "pending", channelId, params: params ?? null, createdAt: now, updatedAt: now })
     .run();
   bus.emit("job.created", { id, type, channel_id: channelId, created_at: now });
   return id;
+}
+
+/** Jobs left non-terminal by an app crash/restart - fed to the boot-time recovery pass. */
+export function getInterruptedJobs() {
+  return db.select().from(jobs).where(inArray(jobs.status, ["pending", "running"])).all();
 }
 
 /** Re-read the job and broadcast its current state on the bus. */

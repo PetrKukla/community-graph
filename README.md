@@ -311,6 +311,7 @@ jinak `401`. Platná cesta s nepodporovanou metodou → `405 method_not_allowed`
 | `POST /api/v1/channels/:id/graph-write` | Spustí krok 3. Nepovinné tělo `{ "max_discussions": N }`. `202` s `job_id` |
 | `GET /api/v1/jobs/:id` | Stav a `result` jednoho jobu |
 | `GET /api/v1/jobs?status=&channel_id=&type=` | Seznam jobů, volitelně filtrovaný |
+| — | **Obnova po restartu:** joby ve stavu `pending`/`running` se při startu appky znovu spustí (stage jsou idempotentní, běží jen nad ještě nezpracovanými řádky). Vstupy, které nejsou v řádku jobu (options, `name_sync` payload), drží sloupec `jobs.params`. `name_sync` bez uloženého payloadu → `failed` s odkazem na `graph-resync`. |
 | `GET /api/v1/channels/:id/discussions?status=` | Debug: diskuze kanálu vč. zpráv a `enrichment` bloku |
 | `GET /api/v1/discussions/:id/enrichment` | Co AI k diskuzi vygenerovala; `404 not_found_or_not_enriched` |
 | `DELETE /api/v1/channels/:id/messages` | Debug reset: smaže zprávy, staged diskuze, enrichment i checkpoint kanálu (historii jobů nechá) |

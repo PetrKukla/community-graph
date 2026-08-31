@@ -16,7 +16,7 @@ graphWriteRoute.post("/channels/:id/graph-write", async (c) => {
     return c.json({ error: "invalid_request", details: parsed.error.flatten() }, 400);
   }
 
-  const jobId = createJob("graph_write", channelId);
+  const jobId = createJob("graph_write", channelId, { maxDiscussions: parsed.data.max_discussions });
   runGraphWriteJob(jobId, channelId, { maxDiscussions: parsed.data.max_discussions });
   return c.json({ job_id: jobId, type: "graph_write", status: "queued" }, 202);
 });

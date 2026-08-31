@@ -97,7 +97,7 @@ async function propagateNames(changed: DictionaryChangedIds): Promise<GraphPropa
   const names = loadDictionaryNames(changed);
 
   if (changedCount > config.dictionary.inline_graph_propagation_max) {
-    const jobId = createJob("name_sync", null);
+    const jobId = createJob("name_sync", null, { names });
     runNameSyncJob(jobId, names);
     return { configured: true, propagated: false, job_id: jobId };
   }
@@ -123,8 +123,9 @@ dictionaryRoute.post("/dictionary/graph-resync", (c) => {
   if (!isNeo4jConfigured()) {
     return c.json({ error: "graph_unavailable", detail: "Neo4j není nakonfigurováno (NEO4J_PASSWORD)." }, 503);
   }
-  const jobId = createJob("name_sync", null);
-  runNameSyncJob(jobId, loadAllDictionaryNames());
+  const names = loadAllDictionaryNames();
+  const jobId = createJob("name_sync", null, { names });
+  runNameSyncJob(jobId, names);
   return c.json({ job_id: jobId, type: "name_sync", status: "queued" }, 202);
 });
 

@@ -36,6 +36,13 @@
       "when": 1788183436416,
       "tag": "0004_quick_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1788186745542,
+      "tag": "0005_magical_daimon_hellstrom",
+      "breakpoints": true
     }
   ]
 }

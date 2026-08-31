@@ -56,8 +56,9 @@ pipelineRoute.post("/pipeline", async (c) => {
     at: new Date().toISOString(),
   });
 
-  const jobId = createJob("pipeline", batch.channel.id);
-  runPipelineJob(jobId, batch.channel.id, ingest, toChannelOptions(options));
+  const channelOptions = toChannelOptions(options);
+  const jobId = createJob("pipeline", batch.channel.id, { options: channelOptions });
+  runPipelineJob(jobId, batch.channel.id, ingest, channelOptions);
 
   return c.json(
     {
@@ -83,8 +84,9 @@ pipelineRoute.post("/channels/:id/pipeline", async (c) => {
     return c.json({ error: "invalid_request", details: parsed.error.flatten() }, 400);
   }
 
-  const jobId = createJob("pipeline", channelId);
-  runPipelineJob(jobId, channelId, undefined, toChannelOptions(parsed.data.options));
+  const channelOptions = toChannelOptions(parsed.data.options);
+  const jobId = createJob("pipeline", channelId, { options: channelOptions });
+  runPipelineJob(jobId, channelId, undefined, channelOptions);
   return c.json({ job_id: jobId, type: "pipeline", status: "queued" }, 202);
 });
 

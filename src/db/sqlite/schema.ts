@@ -81,9 +81,11 @@ export const jobs = sqliteTable(
   "jobs",
   {
     id: text("id").primaryKey(),
-    type: text("type").notNull(), // cluster|enrich|graph_write (full_pipeline: budoucí zřetězení, není v1)
+    type: text("type").notNull(), // cluster|enrich|graph_write|name_sync|pipeline
     status: text("status").notNull().default("pending"), // pending|running|completed|failed
     channelId: text("channel_id"),
+    // inputs needed to re-dispatch the job after an app restart (options, name_sync payload, ...)
+    params: text("params", { mode: "json" }).$type<Record<string, unknown>>(),
     progressCurrent: integer("progress_current").notNull().default(0),
     progressTotal: integer("progress_total").notNull().default(0),
     result: text("result", { mode: "json" }).$type<Record<string, unknown>>(),
