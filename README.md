@@ -119,6 +119,7 @@ skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`. 
 | `query.min_candidate_score` | Práh skóre. Když po fúzi nic neprojde, endpoint vrátí `confidence: "low"` bez volání LLM syntézy. |
 | `query.recency_half_life_days` | Po kolika dnech klesne recency bonus na polovinu. |
 | `query.weight_vector` / `weight_anchor` / `weight_expansion` / `weight_recency` | Váhy složek finálního skóre kandidáta. |
+| `query.weight_type_preference` | Měkký bonus, když typ diskuze sedí na `preferred_discussion_types` z plánovače. Nefiltruje — jen řadí. |
 | `query.opinion_sentiment_diversity` | U názorových otázek držet v evidence setu i menšinový sentiment (pozitivní/negativní). |
 | `query.vocab_sample_size` | Kolik nejčastějších názvů `Topic`/`Entity` se dá plánovači jako slovník grafu. |
 
@@ -389,7 +390,9 @@ curl -X POST http://localhost:3004/api/v1/query \
 ```
 
 - Nepovinné tělo: `filters.channel_ids[]`, `filters.discussion_types[]`, `filters.since`
-  (ISO datum) — explicitní filtr má přednost před tím, co odvodí plánovač.
+  (ISO datum). Tohle jsou **jediné tvrdé filtry** — plánovač žádné netvoří, jen měkce
+  ovlivní řazení (`preferred_discussion_types`). Když tvrdý filtr na typ/datum nic nevrátí,
+  pipeline to zkusí ještě jednou bez něj (kanály nechá) a přidá k odpovědi poznámku.
 - `?debug=1` přidá objekt `debug` s plánem dotazu, kandidáty (skóre + zdroj) a časy fází.
 - Když po fúzi neprojde nic nad `query.min_candidate_score`, vrátí se `confidence: "low"`
   a věcné „nenašel jsem dost podkladů" — **bez** volání LLM syntézy (a bez fabulace).

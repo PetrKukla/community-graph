@@ -55,7 +55,7 @@ Krátké shrnutí mechanik, na kterých fáze stojí:
 ```
 POST /api/v1/query
   │
-  ├─ 1. queryPlanner     otázka ──LLM(structured)──> QueryPlan {search_queries[], topics[], entities[], intent, filters, answer_language}
+  ├─ 1. queryPlanner     otázka ──LLM(structured)──> QueryPlan {search_queries[], topics[], entities[], intent, preferred_discussion_types[], answer_language}
   │
   ├─ 2. retriever        pro každý search_query: EmbeddingProvider.embed ──> GraphStore.searchDiscussionsByVector
   │                      + GraphStore.getDiscussionsByAnchors (topics/entities přes fulltext)
@@ -97,20 +97,18 @@ export const queryPlanSchema = z.object({
   topics: z.array(z.string()).describe("Kandidátní kanonické názvy témat k dohledání mezi Topic uzly."),
   entities: z.array(z.string()).describe("Kandidátní pojmenované entity (produkt, technologie, značka, osoba)."),
   intent: z.enum(QUERY_INTENTS),
-  filters: z.object({
-    discussion_types: z.array(z.enum(DISCUSSION_TYPES)).nullable(),
-    channel_hints: z.array(z.string()).nullable(),
-    since: z.string().nullable().describe("ISO datum, pokud je otázka časově omezená ('minulý týden')."),
-    usernames: z.array(z.string()).nullable(),
-  }),
+  preferred_discussion_types: z.array(z.enum(DISCUSSION_TYPES))
+    .describe("Typ(y), které k otázce sedí (troubleshooting → ['help-request']). Jen MĚKKÁ preference při řazení, nikdy filtr."),
   answer_language: z.string().describe("ISO 639-1 kód jazyka otázky, ve kterém se má odpovědět."),
 });
 ```
 
+**Tvrdé vs. měkké filtry.** Plánovač **netvoří žádné tvrdé filtry**. Cokoli LLM odvodí (typ diskuze) je jen měkký vstup do skóre (viz fáze 3) — špatný odhad tak nemůže vynulovat recall. Tvrdý `WHERE` (`channel_ids`, `discussion_types`, `since`) přijde **výhradně z těla requestu** — uživatelův explicitní rozsah. Když tvrdý filtr nic nevrátí, pipeline udělá jeden retry s uvolněným `discussion_types`/`since` (kanály nechá) a do odpovědi přidá poznámku, místo tichého „nemám podklady".
+
 Slovník pro rozšíření (`topics`/`entities` v promptu se opírají o reálné názvy z grafu) se získá levným Neo4j dotazem na nejčastější `Topic.name` / `Entity.name` a předá se do system promptu plánovače jako nápověda — plánovač tak navrhuje labely, které v grafu skutečně existují, ne synonyma.
 
-`intent` řídí retrieval i syntézu:
-- `troubleshooting` → boost `discussion_type = help-request`, boost `resolved = true`, agresivnější expanze po `CONTINUATION_OF`.
+`intent` a `preferred_discussion_types` řídí ranking i syntézu:
+- `troubleshooting` → měkký boost pro `discussion_type = help-request` (přes `preferred_discussion_types`), boost `resolved = true`, agresivnější expanze po `CONTINUATION_OF`.
 - `opinion` → záměrně držet **rozmanitost sentimentu** v evidence setu (ne jen top-K nejpodobnějších, ale mix positive/negative/mixed clusterů).
 - `timeline` / `person-activity` → řadit evidence chronologicky, přitáhnout `CONTINUATION_OF` řetězce / `PARTICIPATED_IN` daného uživatele.
 
@@ -134,8 +132,8 @@ Expanzní kandidáti dostanou **diskontované** skóre a **re-rank podle cosine 
 Finální skóre kandidáta:
 ```
 score = w_vector·vec_sim + w_anchor·anchor_hit + w_expansion·expansion_score
-        + w_recency·recency_boost(started_at)         // half-life z configu
-        + intent_boost                                 // help-request/resolved, atd.
+        + w_recency·recency_boost(started_at)              // half-life z configu
+        + preference_boost                                 // w_type_preference (typ ∈ preferred) + resolved u troubleshootingu
 ```
 Zahodí se kandidáti pod `[query].min_candidate_score`. Zbytek → top-K (`[query].evidence_set_size`) = **evidence set**. Když nezbude nic nad prahem → fáze 4 se přeskočí, vrací se `confidence: "low"` a věcné „Nenašel jsem k tomu v komunitě dost podkladů." (žádné LLM, žádná halucinace).
 
@@ -174,7 +172,7 @@ POST /api/v1/query
   -> 503 { error }  # Neo4j nedostupné
 ```
 
-Volitelné `filters` v body přebijí/zúží to, co odvodil plánovač (explicitní uživatelský filtr má přednost).
+Volitelné `filters` v body jsou **jediné tvrdé filtry** (plánovač žádné netvoří). Prázdný výsledek s aktivním `discussion_types`/`since` spustí jeden uvolněný retry + poznámku v odpovědi.
 
 ## Nová backend práce
 
@@ -239,6 +237,7 @@ weight_vector = 1.0
 weight_anchor = 0.6
 weight_expansion = 0.4
 weight_recency = 0.15
+weight_type_preference = 0.15   # měkký bonus za shodu typu diskuze s preferencí plánovače
 ```
 
 Popis každého klíče (co dělá, default, kdy měnit) se dopíše do českého `README.md` vedle stávající dokumentace `config.toml`. `[query]` LLM model/provider se **nekonfiguruje zvlášť** — používá se tentýž `[llm]` adapter jako pro enrichment.
