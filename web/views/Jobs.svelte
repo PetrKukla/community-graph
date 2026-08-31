@@ -4,6 +4,7 @@
   import JobStatusBadge from "$lib/components/JobStatusBadge.svelte";
   import RelativeTime from "$lib/components/RelativeTime.svelte";
   import { jobsQuery } from "$lib/api/queries";
+  import { link } from "$lib/router.svelte";
   import { jobTypeLabel } from "$lib/labels";
   import type { JobStatus, JobType } from "../types";
 
@@ -63,7 +64,7 @@
           {#each rows as job (job.id)}
             <tr class="border-b border-border/60 last:border-0 hover:bg-secondary/40">
               <td class="py-2 pr-4">
-                <a href={`#/jobs/${job.id}`} class="font-medium hover:underline">{jobTypeLabel(job.type)}</a>
+                <a href={`/jobs/${job.id}`} use:link class="font-medium hover:underline">{jobTypeLabel(job.type)}</a>
               </td>
               <td class="py-2 pr-4 text-muted-foreground">{job.channel_id ?? "—"}</td>
               <td class="py-2 pr-4"><JobStatusBadge status={job.status} /></td>

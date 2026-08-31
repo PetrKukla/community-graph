@@ -5,6 +5,7 @@
   import JobStatusBadge from "$lib/components/JobStatusBadge.svelte";
   import RelativeTime from "$lib/components/RelativeTime.svelte";
   import { jobQuery, aiCallsQuery } from "$lib/api/queries";
+  import { link } from "$lib/router.svelte";
   import { jobTypeLabel, formatMs, formatTokens, tokensTitle } from "$lib/labels";
 
   const { params }: { params?: { id?: string } } = $props();
@@ -18,7 +19,7 @@
 </script>
 
 <div class="flex flex-col gap-6">
-  <a href="#/jobs" class="text-sm text-muted-foreground hover:underline">← Zpět na jobs</a>
+  <a href="/jobs" use:link class="text-sm text-muted-foreground hover:underline">← Zpět na jobs</a>
 
   <QueryBoundary
     isPending={$job.isPending}

@@ -6,6 +6,7 @@
   import JobStatusBadge from "$lib/components/JobStatusBadge.svelte";
   import RelativeTime from "$lib/components/RelativeTime.svelte";
   import { statsQuery, jobsQuery } from "$lib/api/queries";
+  import { link } from "$lib/router.svelte";
   import { liveTick } from "$lib/realtime/live.svelte";
   import { liveLlmCalls } from "$lib/realtime/live.svelte";
   import { jobTypeLabel, formatMs } from "$lib/labels";
@@ -56,7 +57,7 @@
         <ul class="flex flex-col divide-y divide-border">
           {#each activeJobs as job (job.id)}
             <li class="flex items-center justify-between gap-2 py-2 text-sm">
-              <a href={`#/jobs/${job.id}`} class="font-medium hover:underline">{jobTypeLabel(job.type)}</a>
+              <a href={`/jobs/${job.id}`} use:link class="font-medium hover:underline">{jobTypeLabel(job.type)}</a>
               <div class="flex items-center gap-2 text-xs text-muted-foreground">
                 <RelativeTime value={job.created_at} />
                 <JobStatusBadge status={job.status} />

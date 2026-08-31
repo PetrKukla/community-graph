@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { location } from "svelte-spa-router";
+  import { router, link } from "$lib/router.svelte";
   import { IconMoon, IconSun, IconPointFilled, IconKey } from "@tabler/icons-svelte";
   import { theme } from "$lib/stores/theme.svelte";
   import { connection } from "$lib/realtime/socket.svelte";
@@ -18,7 +18,7 @@
   ];
 
   function isActive(href: string): boolean {
-    const path = $location || "/";
+    const path = router.path || "/";
     return href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
   }
 
@@ -32,12 +32,13 @@
 <div class="min-h-screen bg-background text-foreground">
   <header class="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
     <div class="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:gap-6 sm:px-6">
-      <a href="#/" class="shrink-0 text-sm font-semibold tracking-tight">community-graph</a>
+      <a href="/" use:link class="shrink-0 text-sm font-semibold tracking-tight">community-graph</a>
 
       <nav class="flex items-center gap-1 overflow-x-auto">
         {#each nav as item (item.href)}
           <a
-            href={`#${item.href}`}
+            href={item.href}
+            use:link
             class={cn(
               "rounded-md px-3 py-1.5 text-sm transition-colors",
               isActive(item.href)
