@@ -50,10 +50,20 @@ export class OpenAICompatibleLLMAdapter implements LLMProvider {
         lastError = `${res.status} ${await res.text()}`;
         continue; // try the next (looser) response_format
       }
-      const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const body = (await res.json()) as {
+        choices?: { message?: { content?: string } }[];
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
+      };
       const raw = body.choices?.[0]?.message?.content ?? "";
       const value = request.schema.parse(JSON.parse(raw));
-      return { value, raw };
+      return {
+        value,
+        raw,
+        usage: {
+          promptTokens: body.usage?.prompt_tokens ?? null,
+          completionTokens: body.usage?.completion_tokens ?? null,
+        },
+      };
     }
     throw new Error(`OpenAI-compatible request failed: ${lastError}`);
   }

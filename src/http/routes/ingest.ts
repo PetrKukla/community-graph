@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { bus } from "../../core/events/bus";
 import { ingestBatch } from "../../db/sqlite/repositories/ingestRepository";
 import { methodNotAllowed } from "../middleware/methodNotAllowed";
 
@@ -36,6 +37,15 @@ ingestRoute.post("/batches", async (c) => {
 
   const batchId = randomUUID();
   const result = ingestBatch(batchId, parsed.data);
+
+  bus.emit("ingest.batch", {
+    batch_id: result.batchId,
+    channel_id: parsed.data.channel.id,
+    message_count: result.messageCount,
+    inserted_count: result.insertedCount,
+    duplicate_count: result.duplicateCount,
+    at: new Date().toISOString(),
+  });
 
   return c.json(
     {

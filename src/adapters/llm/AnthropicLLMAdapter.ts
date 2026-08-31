@@ -42,6 +42,13 @@ export class AnthropicLLMAdapter implements LLMProvider {
     if (response.parsed_output == null) {
       throw new Error(`Anthropic returned no schema-valid output (stop_reason=${response.stop_reason}): ${raw.slice(0, 500)}`);
     }
-    return { value: response.parsed_output as T, raw };
+    return {
+      value: response.parsed_output as T,
+      raw,
+      usage: {
+        promptTokens: response.usage?.input_tokens ?? null,
+        completionTokens: response.usage?.output_tokens ?? null,
+      },
+    };
   }
 }

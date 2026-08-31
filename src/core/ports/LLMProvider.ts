@@ -13,11 +13,19 @@ export interface LLMStructuredRequest<T> {
   context?: string;
 }
 
+/** Token counts for one call, when the provider reports them. `null` when it does not. */
+export interface LLMTokenUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+}
+
 export interface LLMStructuredResult<T> {
   /** Parsed + schema-validated value. */
   value: T;
   /** Raw JSON text returned by the model, kept verbatim for audit/debug. */
   raw: string;
+  /** Token usage for the call, if the adapter could read it. */
+  usage?: LLMTokenUsage;
 }
 
 /**

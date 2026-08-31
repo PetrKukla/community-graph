@@ -1,10 +1,12 @@
 import { config } from "../../config/config";
 import { env } from "../../config/env";
+import { bus } from "../../core/events/bus";
 import type { LLMProvider } from "../../core/ports/LLMProvider";
+import { insertLlmCall, maybePruneLlmCalls } from "../../db/sqlite/repositories/llmCallRepository";
 import { AnthropicLLMAdapter } from "./AnthropicLLMAdapter";
 import { OpenAICompatibleLLMAdapter } from "./OpenAICompatibleLLMAdapter";
 import { GeminiLLMAdapter } from "./GeminiLLMAdapter";
-import { LoggingLLMProvider } from "./LoggingLLMProvider";
+import { LoggingLLMProvider, type LLMCallRecord } from "./LoggingLLMProvider";
 
 let cached: LLMProvider | null = null;
 
@@ -36,8 +38,36 @@ function buildAdapter(): LLMProvider {
   }
 }
 
+/** Persist one instrumentation row and fan the call out to the realtime bus. Never throws. */
+function recordLlmCall(record: LLMCallRecord): void {
+  try {
+    insertLlmCall(record);
+    maybePruneLlmCalls();
+  } catch (err) {
+    console.error(`[llm sink] persist failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  bus.emit("llm.call", {
+    id: record.id,
+    provider: record.provider,
+    model: record.model,
+    context: record.context,
+    channel_id: record.channelId,
+    job_id: record.jobId,
+    started_at: record.startedAt,
+    duration_ms: record.durationMs,
+    status: record.status,
+    prompt_tokens: record.promptTokens,
+    completion_tokens: record.completionTokens,
+    error: record.error,
+  });
+}
+
 /** Returns the LLMProvider selected in config.toml, constructed once per process. */
 export function getLLMProvider(): LLMProvider {
-  cached ??= new LoggingLLMProvider(buildAdapter(), `${config.llm.provider}/${config.llm.model}`);
+  cached ??= new LoggingLLMProvider(buildAdapter(), {
+    provider: config.llm.provider,
+    model: config.llm.model,
+    sink: recordLlmCall,
+  });
   return cached;
 }

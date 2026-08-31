@@ -111,6 +111,28 @@ export const discussionsLocal = sqliteTable(
   ],
 );
 
+// Instrumentation only - one row per completed (or failed) LLM call, powering the dashboard's
+// AI view and the LLM aggregates in /api/v1/stats. Not an audit log of prompts (that stays in
+// discussion_enrichment.raw_llm_response); a retention cap trims it on write.
+export const llmCalls = sqliteTable(
+  "llm_calls",
+  {
+    id: text("id").primaryKey(), // uuid
+    provider: text("provider").notNull(), // anthropic|openai-compatible|gemini
+    model: text("model").notNull(),
+    context: text("context"), // request.context label (e.g. "discussion=abc (12 zpráv)")
+    channelId: text("channel_id"),
+    jobId: text("job_id"),
+    startedAt: text("started_at").notNull(), // ISO8601
+    durationMs: integer("duration_ms").notNull(),
+    status: text("status").notNull(), // ok|error
+    promptTokens: integer("prompt_tokens"),
+    completionTokens: integer("completion_tokens"),
+    error: text("error"),
+  },
+  (table) => [index("idx_llm_calls_started").on(table.startedAt), index("idx_llm_calls_model").on(table.model)],
+);
+
 export const discussionEnrichment = sqliteTable("discussion_enrichment", {
   discussionId: text("discussion_id")
     .primaryKey()

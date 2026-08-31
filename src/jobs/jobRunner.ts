@@ -1,5 +1,6 @@
 import { LocalTransformersEmbeddingAdapter } from "../adapters/embedding/LocalTransformersEmbeddingAdapter";
 import { getLLMProvider } from "../adapters/llm";
+import { llmCallContext } from "../adapters/llm/callContext";
 import { getGraphStore } from "../adapters/graph";
 import { clusterChannel } from "./clusterStage";
 import { enrichChannel, type EnrichChannelOptions } from "./enrichStage";
@@ -18,9 +19,10 @@ export function runClusterJob(jobId: string, channelId: string): void {
 export function runEnrichJob(jobId: string, channelId: string, options: EnrichChannelOptions = {}): void {
   markJobRunning(jobId);
   // resolve the provider lazily inside the chain so a missing-credentials error fails the job
-  // rather than throwing synchronously in the request handler
-  Promise.resolve()
-    .then(() => enrichChannel(channelId, getLLMProvider(), embeddingProvider, options))
+  // rather than throwing synchronously in the request handler; run inside the LLM call context
+  // so every llm_calls row this job produces is tagged with the job and channel.
+  llmCallContext
+    .run({ jobId, channelId }, () => enrichChannel(channelId, getLLMProvider(), embeddingProvider, options))
     .then((result) => markJobCompleted(jobId, { ...result }))
     .catch((err) => markJobFailed(jobId, err instanceof Error ? err.message : String(err)));
 }

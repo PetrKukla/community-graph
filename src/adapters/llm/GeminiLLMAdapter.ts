@@ -37,6 +37,13 @@ export class GeminiLLMAdapter implements LLMProvider {
     const raw = response.text ?? "";
     if (!raw) throw new Error("Gemini returned an empty response");
     const value = request.schema.parse(JSON.parse(raw));
-    return { value, raw };
+    return {
+      value,
+      raw,
+      usage: {
+        promptTokens: response.usageMetadata?.promptTokenCount ?? null,
+        completionTokens: response.usageMetadata?.candidatesTokenCount ?? null,
+      },
+    };
   }
 }

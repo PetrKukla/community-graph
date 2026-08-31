@@ -11,6 +11,9 @@ import { graphWriteRoute } from "./routes/graphWrite";
 import { jobsRoute } from "./routes/jobs";
 import { discussionsRoute } from "./routes/discussions";
 import { enrichmentRoute } from "./routes/enrichment";
+import { streamRoute } from "./routes/stream";
+import { statsRoute } from "./routes/stats";
+import { aiCallsRoute } from "./routes/aiCalls";
 
 export const app = new Hono();
 
@@ -32,6 +35,13 @@ api.route("/", graphWriteRoute);
 api.route("/", jobsRoute);
 api.route("/", discussionsRoute);
 api.route("/", enrichmentRoute);
+
+// Web-interface read APIs (disabled entirely when [web] enabled = false).
+if (config.web.enabled) {
+  api.route("/", streamRoute);
+  api.route("/", statsRoute);
+  api.route("/", aiCallsRoute);
+}
 
 app.route("/api/v1", api);
 
