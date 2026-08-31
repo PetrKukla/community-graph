@@ -1,9 +1,16 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { config } from "../../config/config";
-import { isNeo4jConfigured } from "../../adapters/graph";
+import { getGraphStore, isNeo4jConfigured } from "../../adapters/graph";
 import { bus } from "../../core/events/bus";
-import { syncDictionary, type DictionarySyncRequest } from "../../db/sqlite/repositories/dictionaryRepository";
+import {
+  loadDictionaryNames,
+  syncDictionary,
+  type DictionaryChangedIds,
+  type DictionarySyncRequest,
+} from "../../db/sqlite/repositories/dictionaryRepository";
+import { createJob } from "../../db/sqlite/repositories/jobRepository";
+import { runNameSyncJob } from "../../jobs/jobRunner";
 import { methodNotAllowed } from "../middleware/methodNotAllowed";
 
 // .nullable().optional(): an absent key stays `undefined` (leave column untouched), an explicit
@@ -55,20 +62,54 @@ dictionaryRoute.post("/dictionary", async (c) => {
   const result = syncDictionary(body as DictionarySyncRequest);
 
   const { guildId, channelIds, userIds } = result.changedIds;
-  const at = new Date().toISOString();
   bus.emit("dictionary.synced", {
     guild_changed: guildId !== null,
     channel_ids: channelIds,
     user_ids: userIds,
-    at,
+    at: new Date().toISOString(),
   });
 
   return c.json({
     guild: result.guild,
     channels: result.channels,
     users: result.users,
-    graph: { configured: isNeo4jConfigured(), propagated: false },
+    graph: await propagateNames(result.changedIds),
   });
 });
+
+interface GraphPropagation {
+  configured: boolean;
+  propagated: boolean;
+  updated_nodes?: number;
+  job_id?: string;
+}
+
+/**
+ * Push the changed names into Neo4j. Small syncs run inline; larger ones spawn a name_sync job.
+ * SQLite is already the source of truth, so a Neo4j failure only means propagated: false (200).
+ */
+async function propagateNames(changed: DictionaryChangedIds): Promise<GraphPropagation> {
+  const changedCount = (changed.guildId ? 1 : 0) + changed.channelIds.length + changed.userIds.length;
+  const configured = isNeo4jConfigured();
+  if (!configured || changedCount === 0) return { configured, propagated: false };
+
+  const names = loadDictionaryNames(changed);
+
+  if (changedCount > config.dictionary.inline_graph_propagation_max) {
+    const jobId = createJob("name_sync", null);
+    runNameSyncJob(jobId, names);
+    return { configured: true, propagated: false, job_id: jobId };
+  }
+
+  try {
+    const store = getGraphStore();
+    await store.bootstrap();
+    const { updatedNodes } = await store.syncDictionaryNames(names);
+    return { configured: true, propagated: true, updated_nodes: updatedNodes };
+  } catch (err) {
+    console.error(`[dictionary] Neo4j propagation failed: ${err instanceof Error ? err.message : String(err)}`);
+    return { configured: true, propagated: false };
+  }
+}
 
 dictionaryRoute.all("/dictionary", methodNotAllowed);

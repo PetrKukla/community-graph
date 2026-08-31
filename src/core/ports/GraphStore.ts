@@ -35,6 +35,13 @@ export interface GraphOverviewOptions {
   limit: number;
 }
 
+/** Name changes to push onto nodes that already exist in the graph (Část 4.1). */
+export interface DictionaryNames {
+  guild?: { id: string; name: string | null };
+  channels?: { id: string; name: string | null }[];
+  users?: { id: string; username: string | null; displayName: string | null }[];
+}
+
 /**
  * Hexagonal boundary for the graph store (Neo4j today). Core code depends only on this port.
  * Every write must be idempotent at the payload granularity - the caller guarantees a given
@@ -46,6 +53,12 @@ export interface GraphStore {
   bootstrap(): Promise<void>;
   /** Write one enriched discussion and all its nodes/edges in a single transaction. */
   writeDiscussion(payload: DiscussionGraphPayload): Promise<void>;
+  /**
+   * Update name properties on EXISTING User / Channel / Guild nodes (MATCH ... SET, never MERGE).
+   * Nodes not yet in the graph are left alone - they get their name at graph-write time.
+   * Returns how many nodes were actually touched.
+   */
+  syncDictionaryNames(names: DictionaryNames): Promise<{ updatedNodes: number }>;
   /** Throws if the store is unreachable. */
   verifyConnectivity(): Promise<void>;
   close(): Promise<void>;

@@ -1,6 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { db } from "../client";
 import { guilds, channels, users } from "../schema";
+import type { DictionaryNames } from "../../../core/ports/GraphStore";
 
 /**
  * A field is only acted on when the key is present in the request object:
@@ -39,12 +40,18 @@ export interface SectionCounts {
   unchanged: number;
 }
 
+export interface DictionaryChangedIds {
+  guildId: string | null;
+  channelIds: string[];
+  userIds: string[];
+}
+
 export interface DictionarySyncResult {
   guild: { updated: 0 | 1 };
   channels: SectionCounts;
   users: SectionCounts;
   /** IDs whose name columns actually changed - fed to the Neo4j propagation so no-op SETs are skipped. */
-  changedIds: { guildId: string | null; channelIds: string[]; userIds: string[] };
+  changedIds: DictionaryChangedIds;
 }
 
 /** Does the incoming row differ from what is stored, considering only the keys it carries? */
@@ -169,4 +176,29 @@ export function syncDictionary(req: DictionarySyncRequest): DictionarySyncResult
 
     return result;
   });
+}
+
+/** Current SQLite names for a set of changed IDs, shaped for GraphStore.syncDictionaryNames. */
+export function loadDictionaryNames(changed: DictionaryChangedIds): DictionaryNames {
+  const out: DictionaryNames = {};
+
+  if (changed.guildId) {
+    const g = db.select({ name: guilds.name }).from(guilds).where(inArray(guilds.id, [changed.guildId])).get();
+    out.guild = { id: changed.guildId, name: g?.name ?? null };
+  }
+  if (changed.channelIds.length > 0) {
+    out.channels = db
+      .select({ id: channels.id, name: channels.name })
+      .from(channels)
+      .where(inArray(channels.id, changed.channelIds))
+      .all();
+  }
+  if (changed.userIds.length > 0) {
+    out.users = db
+      .select({ id: users.id, username: users.username, displayName: users.displayName })
+      .from(users)
+      .where(inArray(users.id, changed.userIds))
+      .all();
+  }
+  return out;
 }

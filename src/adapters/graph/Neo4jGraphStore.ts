@@ -1,6 +1,7 @@
 import neo4j, { type Driver, type Node, type Record as Neo4jRecord, type Relationship } from "neo4j-driver";
 import { config } from "../../config/config";
 import type {
+  DictionaryNames,
   GraphOverviewOptions,
   GraphStore,
   GraphView,
@@ -101,6 +102,25 @@ SET d.channel_id = $d.channelId,
     d.discussion_type = $d.discussionType,
     d.resolved = $d.resolved
 MERGE (d)-[:OCCURRED_IN]->(c)
+`;
+
+// Dictionary name propagation (Část 4.1). MATCH-only: never creates nodes.
+const SYNC_USER_NAMES = `
+UNWIND $users AS u
+  MATCH (n:User {id: u.id})
+  SET n.username = u.username, n.display_name = u.displayName
+  RETURN count(n) AS touched
+`;
+const SYNC_CHANNEL_NAMES = `
+UNWIND $channels AS ch
+  MATCH (n:Channel {id: ch.id})
+  SET n.name = ch.name
+  RETURN count(n) AS touched
+`;
+const SYNC_GUILD_NAME = `
+MATCH (n:Guild {id: $guild.id})
+  SET n.name = $guild.name
+  RETURN count(n) AS touched
 `;
 
 const SET_DISCUSSION_EMBEDDING = `
@@ -347,6 +367,35 @@ export class Neo4jGraphStore implements GraphStore {
             now,
           });
         }
+      });
+    } finally {
+      await session.close();
+    }
+  }
+
+  async syncDictionaryNames(names: DictionaryNames): Promise<{ updatedNodes: number }> {
+    const users = names.users ?? [];
+    const channels = names.channels ?? [];
+    const guild = names.guild ?? null;
+    if (users.length === 0 && channels.length === 0 && !guild) return { updatedNodes: 0 };
+
+    const session = this.#driver.session();
+    try {
+      return await session.executeWrite(async (tx) => {
+        let updated = 0;
+        if (users.length > 0) {
+          const res = await tx.run(SYNC_USER_NAMES, { users });
+          updated += Number(res.records[0]?.get("touched") ?? 0);
+        }
+        if (channels.length > 0) {
+          const res = await tx.run(SYNC_CHANNEL_NAMES, { channels });
+          updated += Number(res.records[0]?.get("touched") ?? 0);
+        }
+        if (guild) {
+          const res = await tx.run(SYNC_GUILD_NAME, { guild });
+          updated += Number(res.records[0]?.get("touched") ?? 0);
+        }
+        return { updatedNodes: updated };
       });
     } finally {
       await session.close();

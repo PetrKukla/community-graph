@@ -5,7 +5,9 @@ import { getGraphStore } from "../adapters/graph";
 import { clusterChannel } from "./clusterStage";
 import { enrichChannel, type EnrichChannelOptions } from "./enrichStage";
 import { graphWriteChannel, type GraphWriteChannelOptions } from "./graphWriteStage";
+import { nameSyncGraph } from "./nameSyncStage";
 import { markJobRunning, markJobCompleted, markJobFailed } from "../db/sqlite/repositories/jobRepository";
+import type { DictionaryNames } from "../core/ports/GraphStore";
 
 const embeddingProvider = new LocalTransformersEmbeddingAdapter();
 
@@ -35,6 +37,15 @@ export function runGraphWriteJob(jobId: string, channelId: string, options: Grap
       await store.bootstrap();
       return graphWriteChannel(channelId, store, options);
     })
+    .then((result) => markJobCompleted(jobId, { ...result }))
+    .catch((err) => markJobFailed(jobId, err instanceof Error ? err.message : String(err)));
+}
+
+/** Part 4.1 - large dictionary sync / graph-resync: push names onto existing Neo4j nodes. */
+export function runNameSyncJob(jobId: string, names: DictionaryNames): void {
+  markJobRunning(jobId);
+  Promise.resolve()
+    .then(() => nameSyncGraph(getGraphStore(), names))
     .then((result) => markJobCompleted(jobId, { ...result }))
     .catch((err) => markJobFailed(jobId, err instanceof Error ? err.message : String(err)));
 }

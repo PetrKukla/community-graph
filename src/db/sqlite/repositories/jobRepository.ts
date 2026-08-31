@@ -4,10 +4,10 @@ import { bus } from "../../../core/events/bus";
 import { db } from "../client";
 import { jobs } from "../schema";
 
-export type JobType = "cluster" | "enrich" | "graph_write";
+export type JobType = "cluster" | "enrich" | "graph_write" | "name_sync";
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
-export function createJob(type: JobType, channelId: string): string {
+export function createJob(type: JobType, channelId: string | null): string {
   const id = randomUUID();
   const now = new Date().toISOString();
   db.insert(jobs)

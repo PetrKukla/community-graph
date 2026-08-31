@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 process.env.SQLITE_PATH = join(tmpdir(), `cg-dict-${randomUUID()}.sqlite`);
 
 const { db, runMigrations } = await import("../../src/db/sqlite/client");
-const { syncDictionary } = await import("../../src/db/sqlite/repositories/dictionaryRepository");
+const { syncDictionary, loadDictionaryNames } = await import("../../src/db/sqlite/repositories/dictionaryRepository");
 const { ingestBatch } = await import("../../src/db/sqlite/repositories/ingestRepository");
 const { guilds, channels, users } = await import("../../src/db/sqlite/schema");
 
@@ -67,6 +67,22 @@ describe("syncDictionary", () => {
     expect(row?.firstSeenAt).toBeNull();
     expect(row?.lastSeenAt).toBeNull();
     expect(row?.messageCount).toBe(0);
+  });
+
+  test("loadDictionaryNames resolves current names for changed ids only", () => {
+    syncDictionary({
+      guild: { id: "lg1", name: "Loaded" },
+      channels: [{ id: "lc1", name: "chan" }],
+      users: [{ id: "lu1", username: "u", display_name: "U" }],
+    });
+
+    const names = loadDictionaryNames({ guildId: "lg1", channelIds: ["lc1"], userIds: ["lu1"] });
+    expect(names.guild).toEqual({ id: "lg1", name: "Loaded" });
+    expect(names.channels).toEqual([{ id: "lc1", name: "chan" }]);
+    expect(names.users).toEqual([{ id: "lu1", username: "u", displayName: "U" }]);
+
+    // no changed ids -> empty shape
+    expect(loadDictionaryNames({ guildId: null, channelIds: [], userIds: [] })).toEqual({});
   });
 
   test("ingest keeps names from the dictionary and only widens the seen-window", () => {

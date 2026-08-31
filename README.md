@@ -304,7 +304,7 @@ jinak `401`. Platná cesta s nepodporovanou metodou → `405 method_not_allowed`
 | `GET /api/v1/discussions/:id/enrichment` | Co AI k diskuzi vygenerovala; `404 not_found_or_not_enriched` |
 | `DELETE /api/v1/channels/:id/messages` | Debug reset: smaže zprávy, staged diskuze, enrichment i checkpoint kanálu (historii jobů nechá) |
 | `GET /health` | Bez autentizace. `503` jen když selže SQLite; Neo4j je informativní |
-| `GET /api/v1/stream` | WebSocket, forwarduje bus události (`job.*`, `llm.call`, `ingest.batch`, `stats.tick`). Klíč jako `?token=<API_KEY>` (WS hlavičky z prohlížeče nejdou). |
+| `GET /api/v1/stream` | WebSocket, forwarduje bus události (`job.*`, `llm.call`, `ingest.batch`, `stats.tick`, `dictionary.synced`). Klíč jako `?token=<API_KEY>` (WS hlavičky z prohlížeče nejdou). |
 | `GET /api/v1/stats` | Agregáty pro dashboard: `funnel`, `totals`, zprávy/kanál, histogram velikostí clusterů, sentiment/`discussion_type`, top témata/entity, LLM `avg`/`p50`/`p95` + per model + časová řada. Čistě SQLite. |
 | `GET /api/v1/ai/calls?limit=&status=&model=&job_id=&channel_id=&cursor=` | Stránkovaný výpis `llm_calls`, newest-first (keyset kurzor). |
 | `GET /api/v1/graph/overview?channel_id=&limit=` | Navzorkovaný podgraf pro první vykreslení. `503 neo4j_not_configured` bez Neo4j. |
@@ -360,7 +360,7 @@ curl -X POST http://localhost:3004/api/v1/dictionary \
 #     "guild":    { "updated": 1 },
 #     "channels": { "received": 1, "created": 1, "updated": 0, "unchanged": 0 },
 #     "users":    { "received": 1, "created": 1, "updated": 0, "unchanged": 0 },
-#     "graph":    { "configured": true, "propagated": false }
+#     "graph":    { "configured": true, "propagated": true, "updated_nodes": 2 }
 #   }
 ```
 
@@ -371,7 +371,14 @@ curl -X POST http://localhost:3004/api/v1/dictionary \
 - **Pre-seed:** sync uživatele, který ještě nemá zprávu, založí `users` řádek s
   `first_seen_at` / `last_seen_at` `NULL`; první pozdější zpráva je dorovná.
 - Strop na `channels + users` v jednom requestu je `[dictionary].max_ids_per_request`.
-- Propagace názvů do už zapsaného Neo4j grafu — viz níže (D3).
+- **Propagace do Neo4j:** názvy se hned přepíšou na už existujících uzlech `User` / `Channel`
+  / `Guild` (`MATCH ... SET`, nové uzly se nevytvářejí). Do
+  `[dictionary].inline_graph_propagation_max` změněných ID se to udělá přímo v requestu
+  (`graph.propagated: true`, `graph.updated_nodes`), nad limit se založí job `name_sync`
+  (`graph.job_id`). Neo4j nedostupné → `graph.propagated: false`, SQLite je přesto zapsané;
+  obnova přes `POST /api/v1/dictionary/graph-resync`.
+- Po syncu jde na `/api/v1/stream` událost `dictionary.synced` (`guild_changed`,
+  `channel_ids`, `user_ids`), na kterou web invaliduje grafové dotazy.
 
 ### Výsledky jobů (`GET /jobs/:id` → `result`)
 
