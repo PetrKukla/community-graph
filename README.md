@@ -426,6 +426,11 @@ curl -X POST http://localhost:3004/api/v1/pipeline \
   `graph-write`.
 - Bez dávky: `POST /api/v1/channels/:id/pipeline` s tělem `{ "options": { … } }` spustí totéž
   nad už naingestovanými `processed=0` zprávami kanálu.
+- **Souběžné pipeline joby:** LLM volání jsou serializovaná procesně (jedno v jednu chvíli,
+  ostatní stojí ve FIFO frontě). Druhý job spuštěný během prvního tedy u enrichmentu **počká,
+  až se model uvolní**, a pak sám pokračuje — nespadne kvůli rate-limitu. Clusterizace (bez
+  LLM) běží paralelně; dvě pipeline nad **stejným** kanálem naráz ale nespouštěj (obě by
+  clusterovaly tytéž `processed=0` zprávy).
 
 ### Výsledky jobů (`GET /jobs/:id` → `result`)
 

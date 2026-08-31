@@ -7,6 +7,7 @@ import { AnthropicLLMAdapter } from "./AnthropicLLMAdapter";
 import { OpenAICompatibleLLMAdapter } from "./OpenAICompatibleLLMAdapter";
 import { GeminiLLMAdapter } from "./GeminiLLMAdapter";
 import { LoggingLLMProvider, type LLMCallRecord } from "./LoggingLLMProvider";
+import { SerializingLLMProvider } from "./SerializingLLMProvider";
 
 let cached: LLMProvider | null = null;
 
@@ -62,12 +63,18 @@ function recordLlmCall(record: LLMCallRecord): void {
   });
 }
 
-/** Returns the LLMProvider selected in config.toml, constructed once per process. */
+/**
+ * Returns the LLMProvider selected in config.toml, constructed once per process.
+ * SerializingLLMProvider(Logging(adapter)): one model request at a time process-wide, callers
+ * queue and resume automatically; logging measures only the real call, not the queue wait.
+ */
 export function getLLMProvider(): LLMProvider {
-  cached ??= new LoggingLLMProvider(buildAdapter(), {
-    provider: config.llm.provider,
-    model: config.llm.model,
-    sink: recordLlmCall,
-  });
+  cached ??= new SerializingLLMProvider(
+    new LoggingLLMProvider(buildAdapter(), {
+      provider: config.llm.provider,
+      model: config.llm.model,
+      sink: recordLlmCall,
+    }),
+  );
   return cached;
 }
