@@ -12,9 +12,12 @@ class Router {
   }
 
   go(to: string): void {
-    if (to === this.path) return;
+    // `to` may carry a query/hash (e.g. /graph?focus=<id>); history keeps the full
+    // URL but route matching only ever sees the pathname - keep them apart.
+    const path = to.split(/[?#]/, 1)[0] || '/';
+    if (to === location.pathname + location.search + location.hash) return;
     history.pushState({}, '', to);
-    this.path = to;
+    this.path = path;
     scrollTo(0, 0);
   }
 }
