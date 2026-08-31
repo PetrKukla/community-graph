@@ -1,6 +1,29 @@
-# Zatím jen Neo4j pro krok 3 (graph write). Aplikace samotná se spouští lokálně přes `bun run dev`.
+# `docker compose up` spustí službu (API + webové rozhraní na jednom portu) i Neo4j.
 # Kredence odpovídají výchozím hodnotám v .env.example (NEO4J_USER=neo4j, NEO4J_PASSWORD=community-graph-dev).
+# Pro čistě lokální vývoj stačí `docker compose up -d neo4j` a `bun run dev` + `bun run web:dev`.
 services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "${PORT:-3004}:3004"
+    environment:
+      NODE_ENV: production
+      SQLITE_PATH: /app/data/community-graph.sqlite
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: community-graph-dev
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - app-data:/app/data
+      - ./config.toml:/app/config.toml:ro
+    depends_on:
+      neo4j:
+        condition: service_healthy
+
   neo4j:
     image: neo4j:5.26-community
     ports:
@@ -19,3 +42,4 @@ services:
 
 volumes:
   neo4j-data:
+  app-data:

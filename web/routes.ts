@@ -1,10 +1,9 @@
-import type { Component } from "svelte";
+import { wrap } from "svelte-spa-router/wrap";
 import Overview from "./views/Overview.svelte";
 import Jobs from "./views/Jobs.svelte";
 import JobDetail from "./views/JobDetail.svelte";
 import Ai from "./views/Ai.svelte";
 import Stats from "./views/Stats.svelte";
-import Graph from "./views/Graph.svelte";
 import NotFound from "./views/NotFound.svelte";
 
 export const routes = {
@@ -13,6 +12,7 @@ export const routes = {
   "/jobs/:id": JobDetail,
   "/ai": Ai,
   "/stats": Stats,
-  "/graph": Graph,
+  // graphology + sigma are heavy - split them into their own chunk, loaded on /graph
+  "/graph": wrap({ asyncComponent: () => import("./views/Graph.svelte") }),
   "*": NotFound,
-} satisfies Record<string, Component>;
+};

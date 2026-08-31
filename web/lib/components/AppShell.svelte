@@ -30,10 +30,10 @@
 
 <div class="min-h-screen bg-background text-foreground">
   <header class="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
-    <div class="mx-auto flex h-14 max-w-[1400px] items-center gap-6 px-6">
-      <a href="#/" class="text-sm font-semibold tracking-tight">community-graph</a>
+    <div class="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:gap-6 sm:px-6">
+      <a href="#/" class="shrink-0 text-sm font-semibold tracking-tight">community-graph</a>
 
-      <nav class="flex items-center gap-1">
+      <nav class="flex items-center gap-1 overflow-x-auto">
         {#each nav as item (item.href)}
           <a
             href={`#${item.href}`}
@@ -49,7 +49,7 @@
         {/each}
       </nav>
 
-      <div class="ml-auto flex items-center gap-3">
+      <div class="ml-auto flex shrink-0 items-center gap-3">
         <span
           class={cn(
             "flex items-center gap-1 text-xs",

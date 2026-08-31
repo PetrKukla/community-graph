@@ -30,7 +30,7 @@ export function startRealtime(queryClient: QueryClient): () => void {
 
   function scheduleReconnect(): void {
     if (stopped || reconnectTimer) return;
-    const delay = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** attempt) + Math.random() * 250;
+    const delay = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** Math.min(attempt, 8)) + Math.random() * 250;
     attempt++;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;

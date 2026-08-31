@@ -1,0 +1,15 @@
+node_modules
+web/dist
+data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.git
+.idea
+.claude
+graphify-out
+examples/dump
+messages-dump.json
+*.log
+.env
+.env.*

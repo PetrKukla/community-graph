@@ -4,7 +4,7 @@ import toml from "../../config.toml";
 const configSchema = z.object({
   server: z.object({
     port: z.number().int().positive(),
-    host: z.string().min(1),
+    host: z.string().min(1).default("0.0.0.0"),
   }),
   clustering: z.object({
     silence_gap_minutes: z.number().positive(),
@@ -26,14 +26,18 @@ const configSchema = z.object({
     max_messages_per_call: z.number().int().positive(),
     request_timeout_ms: z.number().int().positive(),
   }),
-  web: z.object({
-    enabled: z.boolean(),
-    dev_port: z.number().int().positive(),
-    llm_calls_retention_days: z.number().int().positive(),
-    llm_calls_max_rows: z.number().int().positive(),
-    stats_tick_seconds: z.number().positive(),
-    graph_overview_limit: z.number().int().positive(),
-  }),
+  // every key defaulted, and the whole section prefaulted, so a config.toml written
+  // before Part 2 (no [web] block) still boots
+  web: z
+    .object({
+      enabled: z.boolean().default(true),
+      dev_port: z.number().int().positive().default(5173),
+      llm_calls_retention_days: z.number().int().positive().default(14),
+      llm_calls_max_rows: z.number().int().positive().default(50_000),
+      stats_tick_seconds: z.number().positive().default(2),
+      graph_overview_limit: z.number().int().positive().default(400),
+    })
+    .prefault({}),
 });
 
 const parsed = configSchema.parse(toml);

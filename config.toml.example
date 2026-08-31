@@ -1,0 +1,34 @@
+# Zkopíruj na `config.toml` (ten je gitignored) a uprav podle potřeby.
+# Laditelné necitlivé parametry; secrety patří do `.env` (viz `.env.example`).
+
+[server]
+port = 3004 # HTTP port služby (API i webové rozhraní z Části 2); override přes PORT v .env
+host = "0.0.0.0" # bind adresa; override přes HOSTNAME v .env
+
+[clustering]
+silence_gap_minutes = 30 # M - mezera ticha (minuty), po které se time-block považuje za uzavřený
+short_message_word_limit = 6 # W - pod tímto počtem slov se pro zprávu negeneruje embedding
+similarity_threshold = 0.85 # tau - práh cosine similarity pro přiřazení zprávy k aktivnímu sub-clusteru
+continuation_similarity_threshold = 0.80 # theta - práh pro sémantické CONTINUATION_OF (fáze b/c, zatím nevyužito)
+continuation_lookback_days = 14 # jak daleko do historie hledat kandidáty na CONTINUATION_OF (fáze c, zatím nevyužito)
+active_subcluster_idle_minutes = 15 # po jaké neaktivitě v rámci bloku se sub-cluster vyřadí z aktivní sady
+
+[embedding]
+model = "Xenova/multilingual-e5-small"
+dimensions = 384
+
+[llm]
+provider = "gemini" # anthropic | openai-compatible | gemini - kredence pro zvoleného providera se berou z .env
+model = "gemma-4-31b-it" # název modelu u zvoleného providera
+max_tokens = 8192 # strop na délku odpovědi LLM (jedna diskuze rozdělená do mnoha segmentů může být dlouhá)
+temperature = 0.2 # ignorováno Anthropic adaptérem (modely Claude 4.5+ parametr odmítají)
+max_messages_per_call = 400 # kolik zpráv nejvýš se pošle do jedné enrichment výzvy (ochrana proti přetečení kontextu)
+request_timeout_ms = 120000 # timeout jednoho volání LLM
+
+[web]
+enabled = true # false = neservírovat web/dist ani /api/v1/stream|stats|graph
+dev_port = 5173 # port Vite dev serveru (dev proxuje /api na [server].port)
+llm_calls_retention_days = 14 # záznamy llm_calls starší než tolik dní se při zápisu občas smažou
+llm_calls_max_rows = 50000 # strop na počet řádků llm_calls; přebytek se ořízne od nejstarších
+stats_tick_seconds = 2 # jak často se přepočítá levný funnel/totals agregát pro WS klienty
+graph_overview_limit = 400 # cílový počet uzlů v prvním vykreslení grafu

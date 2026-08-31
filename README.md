@@ -25,13 +25,23 @@ Vyžaduje [Bun](https://bun.com) (testováno na `1.3.x`).
 
 ```bash
 bun install
-cp .env.example .env          # uprav aspoň API_KEY
-bun run dev                   # server s auto-reloadem (nebo `bun run start` bez watch)
+cp .env.example .env                  # uprav aspoň API_KEY
+cp config.toml.example config.toml    # laditelné parametry (config.toml je gitignored)
+bun run dev                           # server s auto-reloadem (nebo `bun run start` bez watch)
 ```
 
-Server naslouchá na portu z `config.toml` (`[server] port`, výchozí 3003). Při startu se
+Server naslouchá na portu z `config.toml` (`[server] port`, výchozí 3004). Při startu se
 automaticky aplikují SQLite migrace z `migrations/`. Embedding model
 (`Xenova/multilingual-e5-small`) se stáhne a zacachuje při prvním `/clusterize`.
+
+Webové rozhraní (Část 2) běží ve vývoji zvlášť na Vite:
+
+```bash
+bun run web:dev               # Vite na :5173, proxuje /api na běžící službu (:3004)
+```
+
+V produkci se frontend nebuildí zvlášť — `bun run web:build` vytvoří `web/dist/`, které
+servíruje stejná Hono app na `/` (jeden origin, jeden proces). Viz [Webové rozhraní](#webové-rozhraní).
 
 **Krok 2** potřebuje přístup k LLM — Anthropic/Gemini API klíč, nebo lokální
 OpenAI-kompatibilní server (Ollama, vLLM, LM Studio). Provider se volí v `config.toml`
@@ -69,9 +79,13 @@ Dvě oddělené vrstvy:
 | `LLM_ANTHROPIC_API_KEY` / `LLM_GEMINI_API_KEY` | API klíč — jen pro odpovídajícího providera. |
 | `LLM_OPENAI_COMPATIBLE_BASE_URL` / `_API_KEY` | Base URL a klíč OpenAI-kompatibilního serveru (lokální Ollama/LM Studio klíč většinou nechtějí). |
 | `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` | Připojení k Neo4j (krok 3). Výchozí hodnoty sedí na `docker-compose.yml`. |
+| `PORT` / `HOSTNAME` | Volitelný override `[server].port` / `[server].host` pro deploy (Docker, PaaS). |
+| `VITE_API_BASE` | **Jen dev.** Base URL API pro Vite dev server (výchozí odvozeno z `[server].port`). V produkci je frontend na stejném originu, nenastavuj. |
+| `VITE_API_KEY` | **Jen dev.** Hodnota `API_KEY`, aby klientský bundl mohl volat chráněné `/api/v1/*`. V produkci klíč přidává reverzní proxy, nebo se zadá jednou v UI (uloží se do `localStorage`). |
 
 Vyplňuj jen klíče pro providera zvoleného v `config.toml`. Chybějící LLM klíč → `enrich` job
-skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`.
+skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`. Proměnné s prefixem
+`VITE_` čte jen Vite dev server, ne služba samotná.
 
 ### `config.toml` — laditelné parametry
 
@@ -90,6 +104,69 @@ skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`.
 | `llm.temperature` | **Anthropic adaptér ji ignoruje** (Claude 4.5+ ji odmítá); platí pro `openai-compatible` a `gemini`. |
 | `llm.max_messages_per_call` | Kolik zpráv nejvýš jde do jedné výzvy (ochrana kontextu); delší diskuze se ořízne na prvních N. |
 | `llm.request_timeout_ms` | Timeout jednoho volání LLM. Zvyš u pomalých lokálních modelů. |
+| `web.enabled` | `false` = neservírovat `web/dist` ani endpointy `/api/v1/stream\|stats\|ai/calls\|graph/*`. |
+| `web.dev_port` | Port Vite dev serveru (`bun run web:dev`); ten proxuje `/api` na `[server].port`. |
+| `web.llm_calls_retention_days` / `web.llm_calls_max_rows` | Retence tabulky `llm_calls` (dashboard buffer): při zápisu se občas smažou řádky starší než N dní nebo nad limitem řádků. |
+| `web.stats_tick_seconds` | Interval přepočtu levného `funnel`/`totals` agregátu, který jde WS klientům jako `stats.tick`. Počítá se jen když je aspoň jeden klient připojený. |
+| `web.graph_overview_limit` | Cílový horní počet uzlů v prvním vykreslení grafu; zbytek se dolazí rozbalením sousedů. |
+
+## Webové rozhraní
+
+Lehké **read-only realtime** rozhraní zabudované přímo do služby (Část 2 plánu) — ukazuje, co
+se v systému děje. Nespouští žádný krok pipeline; jen instrumentace navíc: persistovaná LLM
+volání (tabulka `llm_calls`) a in-process event bus, který přes WebSocket teče do prohlížeče.
+
+**Co ukazuje:**
+
+- **Přehled** — stat karty, pipeline funnel (`raw → clustered → enriched → graph-written`),
+  aktivní jobs, poslední LLM volání.
+- **Jobs** — živý seznam s filtrem podle typu/stavu; detail jobu s `result` JSON a navázanými
+  LLM voláními.
+- **LLM volání** — stream volání (provider, model, kontext, doba, tokeny, stav) + agregáty
+  (průměr, p50/p95, chybovost, volání/min, tabulka podle modelu).
+- **Statistiky** — zprávy podle kanálů, histogram velikostí clusterů, LLM časová řada,
+  rozpad podle `sentiment` a `discussion_type`, top témata/entity, per-kanál tabulka.
+- **Graf** — vizualizace Neo4j přes sigma.js + forceatlas2 (WebGL): klik na uzel rozbalí
+  sousedy, hledání zoomne na uzel, filtr podle kanálu a typu uzlu. Vyžaduje běžící Neo4j
+  a proběhlý `graph-write`.
+
+**Stack:** Svelte 5 (runes) + Vite jako čistá SPA v `web/`, TanStack Query pro server state,
+nativní WebSocket s reconnectem, TailwindCSS v4. Žádné druhé `package.json` — frontend devDeps
+jsou v kořenovém, build řídí jeden `vite build`.
+
+### Spuštění
+
+**Vývoj** (dva procesy):
+
+```bash
+bun run dev            # služba na :3004
+bun run web:dev        # Vite na :5173, proxuje /api → :3004
+```
+
+Klíč pro dev volání API dej do `.env` jako `VITE_API_KEY` (= hodnota `API_KEY`).
+
+**Produkce** — jeden proces, jeden origin:
+
+```bash
+bun run web:build      # → web/dist/
+bun run start          # Hono app servíruje web/dist/ na / (SPA fallback) i /api/v1/*
+```
+
+Nebo přes Docker: `docker compose up` postaví image (`docker/Dockerfile`, multi-stage Bun —
+obsahuje krok `bun run web:build`) a spustí `app` + `neo4j`. Lokální `config.toml` se do
+kontejneru bind-mountuje.
+
+### Autentizace
+
+`apiKeyAuth` chrání celé `/api/v1/*`. REST volání posílají `X-API-Key`, WebSocket `?token=`
+(hlavičky u WS handshake z prohlížeče nejdou). V produkci za reverzní proxy může klíč držet
+proxy (frontend bez klíče); jinak se zadá jednou v UI a uloží do `localStorage`.
+
+### Poznámka k UI komponentám
+
+Plán počítá se `shadcn-svelte`. Aktuálně jsou v `web/lib/components/ui/` lehké vlastní
+primitivy (Card, Badge, Button, Skeleton) na Tailwind tokenech; po `bunx --bun
+shadcn-svelte@latest init` + `add` je lze nahradit z registru beze změny cest importů.
 
 ## Datový model (SQLite, `src/db/sqlite/schema.ts`)
 
@@ -209,11 +286,19 @@ jinak `401`. Platná cesta s nepodporovanou metodou → `405 method_not_allowed`
 | `GET /api/v1/discussions/:id/enrichment` | Co AI k diskuzi vygenerovala; `404 not_found_or_not_enriched` |
 | `DELETE /api/v1/channels/:id/messages` | Debug reset: smaže zprávy, staged diskuze, enrichment i checkpoint kanálu (historii jobů nechá) |
 | `GET /health` | Bez autentizace. `503` jen když selže SQLite; Neo4j je informativní |
+| `GET /api/v1/stream` | WebSocket, forwarduje bus události (`job.*`, `llm.call`, `ingest.batch`, `stats.tick`). Klíč jako `?token=<API_KEY>` (WS hlavičky z prohlížeče nejdou). |
+| `GET /api/v1/stats` | Agregáty pro dashboard: `funnel`, `totals`, zprávy/kanál, histogram velikostí clusterů, sentiment/`discussion_type`, top témata/entity, LLM `avg`/`p50`/`p95` + per model + časová řada. Čistě SQLite. |
+| `GET /api/v1/ai/calls?limit=&status=&model=&job_id=&channel_id=&cursor=` | Stránkovaný výpis `llm_calls`, newest-first (keyset kurzor). |
+| `GET /api/v1/graph/overview?channel_id=&limit=` | Navzorkovaný podgraf pro první vykreslení. `503 neo4j_not_configured` bez Neo4j. |
+| `GET /api/v1/graph/node/:id/neighbors?limit=` | Sousedé uzlu (expand-on-click). `id` je Neo4j `elementId`. |
+| `GET /api/v1/graph/search?q=` | Fulltext přes `Topic.name` / `Entity.name` / `Discussion.title` / `User.username`. |
+
+Endpointy `stream` / `stats` / `ai/calls` / `graph/*` existují jen když `config.toml` má `[web] enabled = true`.
 
 ### `POST /api/v1/batches` — tvar vstupu
 
 ```bash
-curl -X POST http://localhost:3003/api/v1/batches \
+curl -X POST http://localhost:3004/api/v1/batches \
   -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{
     "guild":   { "id": "g1", "name": "Moje komunita" },
