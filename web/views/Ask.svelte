@@ -1,10 +1,18 @@
 <script lang="ts">
   import { createMutation } from "@tanstack/svelte-query";
-  import { IconArrowRight, IconHistory, IconTrash } from "@tabler/icons-svelte";
+  import {
+    IconArrowRight,
+    IconHistory,
+    IconTrash,
+    IconAntennaBars1,
+    IconAntennaBars3,
+    IconAntennaBars5,
+  } from "@tabler/icons-svelte";
   import Card from "$lib/components/ui/Card.svelte";
   import Badge from "$lib/components/ui/Badge.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import Skeleton from "$lib/components/ui/Skeleton.svelte";
+  import Tooltip from "$lib/components/ui/Tooltip.svelte";
   import RelativeTime from "$lib/components/RelativeTime.svelte";
   import DiscussionDrawer from "$lib/components/ask/DiscussionDrawer.svelte";
   import { askQuestion, resolveGraphNode, statsQuery } from "$lib/api/queries";
@@ -12,6 +20,7 @@
   import { askHistory, type AskHistoryEntry } from "$lib/stores/askHistory.svelte";
   import { renderAnswer } from "$lib/ask/answer";
   import { navigate } from "$lib/router.svelte";
+  import { cn } from "$lib/utils";
   import type { QueryAnswer, QueryConfidence, QueryFilters } from "../types";
 
   const stats = statsQuery();
@@ -27,10 +36,12 @@
   let shown = $state<{ question: string; answer: QueryAnswer; filters?: QueryFilters } | null>(null);
   let drawerId = $state<string | null>(null);
 
-  const CONFIDENCE: Record<QueryConfidence, { label: string; variant: "success" | "warning" | "destructive" }> = {
-    high: { label: "vysoká jistota", variant: "success" },
-    medium: { label: "střední jistota", variant: "warning" },
-    low: { label: "nízká jistota", variant: "destructive" },
+  // confidence shows as a colored icon; the wording moves into the tooltip.
+  // swap `icon` for any component (e.g. a Tabler icon) to restyle the indicator.
+  const CONFIDENCE: Record<QueryConfidence, { label: string; color: string; icon: typeof IconAntennaBars5 }> = {
+    high: { label: "Vysoká jistota", color: "text-success", icon: IconAntennaBars5 },
+    medium: { label: "Střední jistota", color: "text-warning", icon: IconAntennaBars3 },
+    low: { label: "Nízká jistota", color: "text-destructive", icon: IconAntennaBars1 },
   };
 
   function currentFilters(): QueryFilters {
@@ -120,7 +131,7 @@
 <div class="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
   <!-- left: input + filters + history -->
   <div class="flex flex-col gap-4">
-    <Card title="Zeptat se" description="Otázka nad znalostní bází komunity.">
+    <Card title="Zeptat se" description="Otázka nad znalostní databází komunity.">
       <div class="flex flex-col gap-3">
         <textarea
           bind:value={question}
@@ -204,7 +215,7 @@
         {/snippet}
         <ul class="flex flex-col gap-1">
           {#each askHistory.items as entry (entry.id)}
-            <li class="group flex items-start gap-1">
+            <li class="group flex items-center gap-1">
               <button
                 type="button"
                 class="min-w-0 flex-1 rounded-md px-2 py-1.5 text-left text-sm hover:bg-secondary/60"
@@ -213,14 +224,17 @@
                 <span class="line-clamp-2">{entry.question}</span>
                 <span class="text-xs text-muted-foreground"><RelativeTime value={entry.at} /></span>
               </button>
-              <button
-                type="button"
-                class="mt-1 shrink-0 rounded p-1 text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100"
-                aria-label="Zeptat se znovu"
-                onclick={() => reRun(entry)}
-              >
-                <IconHistory size={14} />
-              </button>
+              <Tooltip text='Opakovat' side='right'>
+                <button
+                        type="button"
+                        class="mt-1 shrink-0 rounded p-1 text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100"
+                        aria-label="Zeptat se znovu"
+                        onclick={() => reRun(entry)}
+                >
+                  <IconHistory size={14} />
+                </button>
+              </Tooltip>
+
             </li>
           {/each}
         </ul>
@@ -257,11 +271,16 @@
       </Card>
     {:else if shown}
       {@const a = shown.answer}
+      {@const conf = CONFIDENCE[a.confidence]}
       <Card>
-        {#snippet actions()}
-          <Badge variant={CONFIDENCE[a.confidence].variant}>{CONFIDENCE[a.confidence].label}</Badge>
-        {/snippet}
-        <p class="mb-2 text-xs text-muted-foreground">{shown.question}</p>
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <p class="text-xs text-muted-foreground">{shown.question}</p>
+          <Tooltip text={conf.label} side="left" class="shrink-0">
+            <span class={cn("flex items-center", conf.color)} aria-label={conf.label}>
+              <conf.icon size={18} />
+            </span>
+          </Tooltip>
+        </div>
 
         {#if emptyAnswer}
           <p class="rounded-md border border-border bg-secondary/40 p-3 text-sm">

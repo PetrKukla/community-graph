@@ -5,6 +5,7 @@
   import { theme } from "$lib/stores/theme.svelte";
   import { connection } from "$lib/realtime/socket.svelte";
   import { authGate } from "$lib/stores/auth.svelte";
+  import Tooltip from "$lib/components/ui/Tooltip.svelte";
   import { cn } from "$lib/utils";
 
   const { children }: { children?: Snippet } = $props();
@@ -53,20 +54,21 @@
       </nav>
 
       <div class="ml-auto flex shrink-0 items-center gap-3">
-        <span
-          class={cn(
-            "flex items-center gap-1 text-xs",
-            connection.status === "open"
-              ? "text-success"
-              : connection.status === "closed"
-                ? "text-destructive"
-                : "text-muted-foreground",
-          )}
-          title="Stav realtime spojení"
-        >
-          <IconPointFilled size={14} />
-          {connectionLabel[connection.status]}
-        </span>
+        <Tooltip text="Stav realtime spojení" side="bottom">
+          <span
+            class={cn(
+              "flex items-center gap-1 text-xs",
+              connection.status === "open"
+                ? "text-success"
+                : connection.status === "closed"
+                  ? "text-destructive"
+                  : "text-muted-foreground",
+            )}
+          >
+            <IconPointFilled size={14} />
+            {connectionLabel[connection.status]}
+          </span>
+        </Tooltip>
 
         <button
           type="button"

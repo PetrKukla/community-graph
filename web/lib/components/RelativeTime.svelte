@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Tooltip from "$lib/components/ui/Tooltip.svelte";
+
   const { value }: { value: string | number | null | undefined } = $props();
 
   let now = $state(Date.now());
@@ -22,4 +24,10 @@
   const iso = $derived(value == null ? "" : new Date(typeof value === "number" ? value : Date.parse(value)).toISOString());
 </script>
 
-<time datetime={iso} title={iso}>{label}</time>
+{#if iso}
+  <Tooltip text={iso}>
+    <time datetime={iso}>{label}</time>
+  </Tooltip>
+{:else}
+  <time>{label}</time>
+{/if}

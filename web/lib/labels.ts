@@ -32,5 +32,5 @@ export function tokensTitle(
   output: number | null
 ): string {
   if (input == null && output == null) return '';
-  return `${input ?? '?'} tokenů vstup · ${output ?? '?'} tokenů výstup`;
+  return `${input ?? '?'} tokenů vstup / ${output ?? '?'} tokenů výstup`;
 }

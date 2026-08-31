@@ -4,6 +4,7 @@
   import QueryBoundary from "$lib/components/QueryBoundary.svelte";
   import JobStatusBadge from "$lib/components/JobStatusBadge.svelte";
   import RelativeTime from "$lib/components/RelativeTime.svelte";
+  import Tooltip from "$lib/components/ui/Tooltip.svelte";
   import { jobQuery, aiCallsQuery } from "$lib/api/queries";
   import { link } from "$lib/router.svelte";
   import { jobTypeLabel, formatMs, formatTokens, tokensTitle } from "$lib/labels";
@@ -19,7 +20,7 @@
 </script>
 
 <div class="flex flex-col gap-6">
-  <a href="/jobs" use:link class="text-sm text-muted-foreground hover:underline">← Zpět na jobs</a>
+  <a href="/jobs" use:link class="text-sm text-muted-foreground">← Zpět na jobs</a>
 
   <QueryBoundary
     isPending={$job.isPending}
@@ -86,7 +87,9 @@
                   <th class="py-2 pr-4 font-medium">Model</th>
                   <th class="py-2 pr-4 font-medium">Kontext</th>
                   <th class="py-2 pr-4 font-medium">Doba</th>
-                  <th class="py-2 pr-4 font-medium" title="vstup / výstup">Tokeny</th>
+                  <th class="py-2 pr-4 font-medium">
+                    <Tooltip text="vstup / výstup" side="bottom">Tokeny</Tooltip>
+                  </th>
                   <th class="py-2 font-medium">Stav</th>
                 </tr>
               </thead>
@@ -96,11 +99,10 @@
                     <td class="py-2 pr-4 font-medium">{call.model}</td>
                     <td class="py-2 pr-4 text-muted-foreground">{call.context ?? "—"}</td>
                     <td class="py-2 pr-4 tabular-nums">{formatMs(call.duration_ms)}</td>
-                    <td
-                      class="py-2 pr-4 tabular-nums text-muted-foreground"
-                      title={tokensTitle(call.prompt_tokens, call.completion_tokens)}
-                    >
-                      {formatTokens(call.prompt_tokens, call.completion_tokens)}
+                    <td class="py-2 pr-4 tabular-nums text-muted-foreground">
+                      <Tooltip text={tokensTitle(call.prompt_tokens, call.completion_tokens)}>
+                        {formatTokens(call.prompt_tokens, call.completion_tokens)}
+                      </Tooltip>
                     </td>
                     <td class="py-2">
                       <span class:text-success={call.status === "ok"} class:text-destructive={call.status === "error"}>

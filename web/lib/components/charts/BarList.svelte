@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Tooltip from "$lib/components/ui/Tooltip.svelte";
+
   type Item = { label: string; value: number; color?: string };
 
   const {
@@ -22,12 +24,10 @@
   <div class="flex flex-col gap-1.5">
     {#each items as item, i (i)}
       <div class="flex items-center gap-3">
-        <span
-          class="shrink-0 truncate text-xs text-muted-foreground"
-          style:width={labelWidth}
-          title={item.label}
-        >
-          {item.label}
+        <span class="shrink-0" style:width={labelWidth}>
+          <Tooltip text={item.label} class="w-full truncate text-xs text-muted-foreground">
+            {item.label}
+          </Tooltip>
         </span>
         <div class="h-5 flex-1 overflow-hidden rounded bg-muted">
           <div

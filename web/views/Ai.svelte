@@ -1,6 +1,7 @@
 <script lang="ts">
   import Card from "$lib/components/ui/Card.svelte";
   import Button from "$lib/components/ui/Button.svelte";
+  import Tooltip from "$lib/components/ui/Tooltip.svelte";
   import StatCard from "$lib/components/StatCard.svelte";
   import QueryBoundary from "$lib/components/QueryBoundary.svelte";
   import RelativeTime from "$lib/components/RelativeTime.svelte";
@@ -95,7 +96,9 @@
               <th class="py-2 pr-4 font-medium">Model</th>
               <th class="py-2 pr-4 font-medium">Kontext</th>
               <th class="py-2 pr-4 font-medium">Doba</th>
-              <th class="py-2 pr-4 font-medium" title="vstup / výstup">Tokeny</th>
+              <th class="py-2 pr-4 font-medium">
+                <Tooltip text="vstup / výstup" side="bottom">Tokeny</Tooltip>
+              </th>
               <th class="py-2 font-medium">Stav</th>
             </tr>
           </thead>
@@ -104,15 +107,20 @@
               <tr class="border-b border-border/60 last:border-0">
                 <td class="py-2 pr-4 whitespace-nowrap text-muted-foreground"><RelativeTime value={call.started_at} /></td>
                 <td class="py-2 pr-4 font-medium">{call.model}</td>
-                <td class="py-2 pr-4 max-w-[22rem] truncate text-muted-foreground" title={call.context ?? ""}>
-                  {call.context ?? "—"}
+                <td class="py-2 pr-4 text-muted-foreground">
+                  <Tooltip
+                    text={call.context ?? ""}
+                    class="max-w-[22rem] truncate align-middle"
+                    tipClass="max-w-md whitespace-pre-wrap"
+                  >
+                    {call.context ?? "—"}
+                  </Tooltip>
                 </td>
                 <td class="py-2 pr-4 tabular-nums">{formatMs(call.duration_ms)}</td>
-                <td
-                  class="py-2 pr-4 tabular-nums text-muted-foreground"
-                  title={tokensTitle(call.prompt_tokens, call.completion_tokens)}
-                >
-                  {formatTokens(call.prompt_tokens, call.completion_tokens)}
+                <td class="py-2 pr-4 tabular-nums text-muted-foreground">
+                  <Tooltip text={tokensTitle(call.prompt_tokens, call.completion_tokens)}>
+                    {formatTokens(call.prompt_tokens, call.completion_tokens)}
+                  </Tooltip>
                 </td>
                 <td class="py-2">
                   <span class:text-success={call.status === "ok"} class:text-destructive={call.status === "error"}>
