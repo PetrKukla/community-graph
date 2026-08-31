@@ -4,6 +4,7 @@
   import { routes } from "./routes";
   import AppShell from "$lib/components/AppShell.svelte";
   import { theme } from "$lib/stores/theme.svelte";
+  import { startRealtime } from "$lib/realtime/socket.svelte";
 
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -12,6 +13,7 @@
   });
 
   $effect(() => theme.init());
+  $effect(() => startRealtime(queryClient));
 </script>
 
 <QueryClientProvider client={queryClient}>

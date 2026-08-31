@@ -11,6 +11,8 @@ aiCallsRoute.get("/ai/calls", (c) => {
     limit: Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 50,
     status: c.req.query("status"),
     model: c.req.query("model"),
+    jobId: c.req.query("job_id"),
+    channelId: c.req.query("channel_id"),
     cursor: c.req.query("cursor"),
   });
   return c.json(result);

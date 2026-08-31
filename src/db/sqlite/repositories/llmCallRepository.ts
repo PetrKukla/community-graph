@@ -57,6 +57,8 @@ export interface ListLlmCallsParams {
   limit: number;
   status?: string;
   model?: string;
+  jobId?: string;
+  channelId?: string;
   cursor?: string; // "<startedAt>__<id>" of the last row from the previous page
 }
 
@@ -86,6 +88,8 @@ export function listLlmCalls(params: ListLlmCallsParams): ListLlmCallsResult {
   const filters = [];
   if (params.status) filters.push(eq(llmCalls.status, params.status));
   if (params.model) filters.push(eq(llmCalls.model, params.model));
+  if (params.jobId) filters.push(eq(llmCalls.jobId, params.jobId));
+  if (params.channelId) filters.push(eq(llmCalls.channelId, params.channelId));
 
   if (params.cursor) {
     const sep = params.cursor.lastIndexOf("__");
