@@ -9,7 +9,9 @@
   let channelId = $state("");
   let hiddenLabels = $state(new Set<string>());
   let selected = $state<GraphViewNode | null>(null);
-  let canvas = $state<{ focusNode: (id: string) => void } | undefined>();
+  let canvas = $state<
+    { focusNode: (node: GraphViewNode) => void; clearSelection: () => void } | undefined
+  >();
 
   const overview = graphOverviewQuery(() => ({ channel_id: channelId || undefined }));
   const stats = statsQuery();
@@ -57,7 +59,7 @@
         onToggleLabel={toggleLabel}
         onPick={(node) => {
           selected = node;
-          canvas?.focusNode(node.id);
+          canvas?.focusNode(node);
         }}
       />
 
@@ -72,7 +74,13 @@
         onSelect={(node) => (selected = node)}
       />
 
-      <NodeDetail node={selected} onClose={() => (selected = null)} />
+      <NodeDetail
+        node={selected}
+        onClose={() => {
+          selected = null;
+          canvas?.clearSelection();
+        }}
+      />
     </div>
   {/if}
 </div>

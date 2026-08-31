@@ -86,12 +86,30 @@
     }
   }
 
-  export function focusNode(id: string): void {
-    if (!sigma || !graph?.hasNode(id)) return;
-    selectedId = id;
-    onSelect(nodeData.get(id) ?? null);
-    const display = sigma.getNodeDisplayData(id);
-    if (display) sigma.getCamera().animate({ x: display.x, y: display.y, ratio: 0.4 }, { duration: 500 });
+  function centerCamera(id: string): void {
+    const display = sigma?.getNodeDisplayData(id);
+    if (display) sigma?.getCamera().animate({ x: display.x, y: display.y, ratio: 0.4 }, { duration: 500 });
+  }
+
+  /** Select a node and pan to it; pulls it (and its neighbours) in first if it isn't on screen. */
+  export async function focusNode(node: GraphViewNode): Promise<void> {
+    if (!sigma || !graph) return;
+    if (!graph.hasNode(node.id)) {
+      addNode(node);
+      await expand(node.id);
+      sigma.refresh();
+    }
+    if (!graph.hasNode(node.id)) return;
+    selectedId = node.id;
+    onSelect(nodeData.get(node.id) ?? node);
+    centerCamera(node.id);
+  }
+
+  /** Clear the highlight (called by the NodeDetail close button and clicking empty canvas). */
+  export function clearSelection(): void {
+    selectedId = null;
+    onSelect(null);
+    sigma?.refresh();
   }
 
   onMount(() => {
@@ -99,7 +117,7 @@
     sigma = new Sigma(graph, container, {
       renderEdgeLabels: false,
       defaultEdgeColor: "rgba(130,130,130,0.25)",
-      labelColor: { color: getComputedStyle(container).color || "#888" },
+      labelColor: { color: "#141414" }, // dark text - the canvas keeps a light surface in both themes
       labelDensity: 0.6,
       labelRenderedSizeThreshold: 8,
       nodeReducer: (node, data) => {
@@ -116,14 +134,13 @@
     });
 
     sigma.on("clickNode", ({ node }) => {
-      focusNode(node);
+      const data = nodeData.get(node);
+      selectedId = node;
+      onSelect(data ?? null);
+      centerCamera(node);
       void expand(node);
     });
-    sigma.on("clickStage", () => {
-      selectedId = null;
-      onSelect(null);
-      sigma?.refresh();
-    });
+    sigma.on("clickStage", () => clearSelection());
 
     if (view) {
       lastView = view;
@@ -163,4 +180,5 @@
   });
 </script>
 
-<div bind:this={container} class="h-full w-full"></div>
+<!-- light surface always: keeps sigma's hover label (dark text on a white box) readable in dark mode -->
+<div bind:this={container} class="h-full w-full bg-[#fbfbfa]"></div>
