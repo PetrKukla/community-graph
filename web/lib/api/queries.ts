@@ -1,7 +1,7 @@
 import { createInfiniteQuery, createQuery } from "@tanstack/svelte-query";
 import { toStore } from "svelte/store";
 import { apiFetch } from "./client";
-import type { JobDetail, JobSummary, LlmCall, Paginated, Stats } from "../../types";
+import type { GraphView, GraphViewNode, JobDetail, JobSummary, LlmCall, Paginated, Stats } from "../../types";
 
 function qs(params: object): string {
   const search = new URLSearchParams();
@@ -53,6 +53,30 @@ export interface AiCallFilters {
   model?: string;
   job_id?: string;
   channel_id?: string;
+}
+
+export interface GraphOverviewFilters {
+  channel_id?: string;
+  limit?: number;
+}
+
+export function graphOverviewQuery(filters: () => GraphOverviewFilters) {
+  return createQuery(
+    toStore(() => ({
+      queryKey: ["graph", "overview", filters()] as const,
+      queryFn: () => apiFetch<GraphView>(`/api/v1/graph/overview${qs(filters())}`),
+      staleTime: 60_000,
+      retry: false, // a 503 (Neo4j not configured) shouldn't be retried
+    })),
+  );
+}
+
+export function fetchNeighbors(id: string, limit = 40): Promise<GraphView> {
+  return apiFetch<GraphView>(`/api/v1/graph/node/${encodeURIComponent(id)}/neighbors?limit=${limit}`);
+}
+
+export function searchGraph(q: string): Promise<{ nodes: GraphViewNode[] }> {
+  return apiFetch<{ nodes: GraphViewNode[] }>(`/api/v1/graph/search${qs({ q })}`);
 }
 
 /** Paginated llm_calls history for the AI view (keyset cursor). */

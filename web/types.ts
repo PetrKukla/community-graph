@@ -98,6 +98,29 @@ export interface Stats {
   llm_timeseries: { ts_bucket: string; calls: number; avg_ms: number }[];
 }
 
+// --- graph view --------------------------------------------------------------
+
+export interface GraphViewNode {
+  id: string;
+  label: string;
+  caption: string;
+  props: Record<string, unknown>;
+  degree: number;
+}
+
+export interface GraphViewEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  props: Record<string, unknown>;
+}
+
+export interface GraphView {
+  nodes: GraphViewNode[];
+  edges: GraphViewEdge[];
+}
+
 // --- realtime bus events -------------------------------------------------------
 
 export interface JobCreatedEvent {

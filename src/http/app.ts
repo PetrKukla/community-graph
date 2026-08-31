@@ -14,6 +14,7 @@ import { enrichmentRoute } from "./routes/enrichment";
 import { streamRoute } from "./routes/stream";
 import { statsRoute } from "./routes/stats";
 import { aiCallsRoute } from "./routes/aiCalls";
+import { graphRoute } from "./routes/graph";
 
 export const app = new Hono();
 
@@ -41,6 +42,7 @@ if (config.web.enabled) {
   api.route("/", streamRoute);
   api.route("/", statsRoute);
   api.route("/", aiCallsRoute);
+  api.route("/", graphRoute);
 }
 
 app.route("/api/v1", api);

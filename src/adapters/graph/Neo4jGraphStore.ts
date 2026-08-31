@@ -1,8 +1,59 @@
-import type { Driver } from "neo4j-driver";
+import type { Driver, Node, Relationship } from "neo4j-driver";
 import { config } from "../../config/config";
-import type { GraphStore } from "../../core/ports/GraphStore";
+import type {
+  GraphOverviewOptions,
+  GraphStore,
+  GraphView,
+  GraphViewEdge,
+  GraphViewNode,
+} from "../../core/ports/GraphStore";
 import type { DiscussionGraphPayload } from "../../core/graphBuilder/types";
 import { getNeo4jDriver } from "./driver";
+
+const KNOWN_LABELS = ["Discussion", "Topic", "Entity", "User", "Channel"];
+
+function primaryLabel(labels: readonly string[]): string {
+  return labels.find((l) => KNOWN_LABELS.includes(l)) ?? labels[0] ?? "Node";
+}
+
+function nodeCaption(label: string, props: Record<string, unknown>): string {
+  const pick = (...keys: string[]): string | undefined => {
+    for (const k of keys) {
+      const v = props[k];
+      if (typeof v === "string" && v.trim()) return v;
+    }
+    return undefined;
+  };
+  switch (label) {
+    case "Topic":
+    case "Entity":
+      return pick("name") ?? "(bez názvu)";
+    case "Discussion":
+      return pick("title", "summary") ?? "(diskuze bez názvu)";
+    case "Channel":
+      return pick("name") ?? "(kanál)";
+    case "User":
+      return pick("display_name", "username") ?? "(uživatel)";
+    default:
+      return pick("name", "title", "id") ?? label;
+  }
+}
+
+function toViewNode(node: Node, degree: number): GraphViewNode {
+  const label = primaryLabel(node.labels);
+  const props = node.properties as Record<string, unknown>;
+  return { id: node.elementId, label, caption: nodeCaption(label, props), props, degree };
+}
+
+function toViewEdge(rel: Relationship): GraphViewEdge {
+  return {
+    id: rel.elementId,
+    source: rel.startNodeElementId,
+    target: rel.endNodeElementId,
+    type: rel.type,
+    props: rel.properties as Record<string, unknown>,
+  };
+}
 
 const CONSTRAINTS = [
   "CREATE CONSTRAINT user_id IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE",
@@ -172,6 +223,110 @@ export class Neo4jGraphStore implements GraphStore {
           });
         }
       });
+    } finally {
+      await session.close();
+    }
+  }
+
+  /** Real total degree for a set of nodes, keyed by elementId. */
+  async #degrees(ids: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (ids.length === 0) return out;
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    try {
+      const res = await session.run(
+        "MATCH (n) WHERE elementId(n) IN $ids RETURN elementId(n) AS id, count{ (n)--() } AS degree",
+        { ids },
+      );
+      for (const rec of res.records) out.set(rec.get("id") as string, Number(rec.get("degree")));
+    } finally {
+      await session.close();
+    }
+    return out;
+  }
+
+  async #assembleView(nodes: Map<string, Node>, edges: Map<string, Relationship>): Promise<GraphView> {
+    const degrees = await this.#degrees([...nodes.keys()]);
+    return {
+      nodes: [...nodes.values()].map((n) => toViewNode(n, degrees.get(n.elementId) ?? 0)),
+      edges: [...edges.values()].map(toViewEdge),
+    };
+  }
+
+  async graphOverview(options: GraphOverviewOptions): Promise<GraphView> {
+    const limit = Math.max(20, options.limit);
+    const discussionLimit = Math.max(10, Math.ceil(limit / 6));
+    const relLimit = limit * 4;
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    try {
+      const res = await session.run(
+        `MATCH (d:Discussion)
+         WHERE $channelId IS NULL OR d.channel_id = $channelId
+         WITH d ORDER BY d.started_at DESC LIMIT $discussionLimit
+         MATCH (d)-[r]-(n)
+         WITH d, r, n LIMIT $relLimit
+         RETURN d, r, n`,
+        { channelId: options.channelId ?? null, discussionLimit, relLimit },
+      );
+
+      const nodes = new Map<string, Node>();
+      const edges = new Map<string, Relationship>();
+      for (const rec of res.records) {
+        const d = rec.get("d") as Node;
+        const n = rec.get("n") as Node;
+        const r = rec.get("r") as Relationship;
+        nodes.set(d.elementId, d);
+        if (nodes.size <= limit) nodes.set(n.elementId, n);
+        if (nodes.has(r.startNodeElementId) && nodes.has(r.endNodeElementId)) edges.set(r.elementId, r);
+      }
+      return this.#assembleView(nodes, edges);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async nodeNeighbors(id: string, limit: number): Promise<GraphView> {
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    try {
+      const res = await session.run(
+        `MATCH (n) WHERE elementId(n) = $id
+         MATCH (n)-[r]-(m)
+         RETURN n, r, m LIMIT $limit`,
+        { id, limit: Math.max(1, Math.min(limit, 200)) },
+      );
+      const nodes = new Map<string, Node>();
+      const edges = new Map<string, Relationship>();
+      for (const rec of res.records) {
+        const n = rec.get("n") as Node;
+        const m = rec.get("m") as Node;
+        const r = rec.get("r") as Relationship;
+        nodes.set(n.elementId, n);
+        nodes.set(m.elementId, m);
+        edges.set(r.elementId, r);
+      }
+      return this.#assembleView(nodes, edges);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async searchNodes(query: string, limit: number): Promise<GraphViewNode[]> {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const session = this.#driver.session({ defaultAccessMode: "READ" });
+    try {
+      const res = await session.run(
+        `MATCH (n)
+         WHERE (n:Topic AND toLower(n.name) CONTAINS $q)
+            OR (n:Entity AND toLower(n.name) CONTAINS $q)
+            OR (n:Discussion AND n.title IS NOT NULL AND toLower(n.title) CONTAINS $q)
+            OR (n:User AND n.username IS NOT NULL AND toLower(n.username) CONTAINS $q)
+         RETURN n LIMIT $limit`,
+        { q, limit: Math.max(1, Math.min(limit, 50)) },
+      );
+      const nodes = res.records.map((rec) => rec.get("n") as Node);
+      const degrees = await this.#degrees(nodes.map((n) => n.elementId));
+      return nodes.map((n) => toViewNode(n, degrees.get(n.elementId) ?? 0));
     } finally {
       await session.close();
     }
