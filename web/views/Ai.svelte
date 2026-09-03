@@ -4,10 +4,10 @@
   import Tooltip from "$lib/components/ui/Tooltip.svelte";
   import StatCard from "$lib/components/StatCard.svelte";
   import QueryBoundary from "$lib/components/QueryBoundary.svelte";
-  import RelativeTime from "$lib/components/RelativeTime.svelte";
+  import AiCallRow from "$lib/components/AiCallRow.svelte";
   import { statsQuery, aiCallsQuery } from "$lib/api/queries";
   import { liveLlmCalls } from "$lib/realtime/live.svelte";
-  import { formatMs, formatTokens, tokensTitle } from "$lib/labels";
+  import { formatMs } from "$lib/labels";
 
   const stats = statsQuery();
 
@@ -67,7 +67,10 @@
     </QueryBoundary>
   </Card>
 
-  <Card title="Stream volání" description={`${liveLlmCalls.items.length} v tomto sezení`}>
+  <Card
+    title="Stream volání"
+    description={`${liveLlmCalls.items.length} v tomto sezení · klikni na řádek pro prompt a odpověď`}
+  >
     {#snippet actions()}
       <select class={selectClass} bind:value={status} aria-label="Stav volání">
         <option value="">Vše</option>
@@ -104,30 +107,7 @@
           </thead>
           <tbody>
             {#each rows as call (call.id)}
-              <tr class="border-b border-border/60 last:border-0">
-                <td class="py-2 pr-4 whitespace-nowrap text-muted-foreground"><RelativeTime value={call.started_at} /></td>
-                <td class="py-2 pr-4 font-medium">{call.model}</td>
-                <td class="py-2 pr-4 text-muted-foreground">
-                  <Tooltip
-                    text={call.context ?? ""}
-                    class="max-w-[22rem] truncate align-middle"
-                    tipClass="max-w-md whitespace-pre-wrap"
-                  >
-                    {call.context ?? "—"}
-                  </Tooltip>
-                </td>
-                <td class="py-2 pr-4 tabular-nums">{formatMs(call.duration_ms)}</td>
-                <td class="py-2 pr-4 tabular-nums text-muted-foreground">
-                  <Tooltip text={tokensTitle(call.prompt_tokens, call.completion_tokens)}>
-                    {formatTokens(call.prompt_tokens, call.completion_tokens)}
-                  </Tooltip>
-                </td>
-                <td class="py-2">
-                  <span class:text-success={call.status === "ok"} class:text-destructive={call.status === "error"}>
-                    {call.status === "ok" ? "ok" : "chyba"}
-                  </span>
-                </td>
-              </tr>
+              <AiCallRow {call} />
             {/each}
           </tbody>
         </table>

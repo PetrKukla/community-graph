@@ -20,6 +20,19 @@ export interface LLMCallRecord {
   promptTokens: number | null;
   completionTokens: number | null;
   error: string | null;
+  /** Full text of the call, for the AI-view detail panel. Long prompts are truncated. */
+  systemPrompt: string | null;
+  userPrompt: string | null;
+  response: string | null; // raw JSON text from the model; null on error
+}
+
+/** Guard against a pathological row: keep the head of very long prompts/responses. */
+const MAX_STORED_CHARS = 200_000;
+function clip(text: string | null | undefined): string | null {
+  if (text == null) return null;
+  return text.length > MAX_STORED_CHARS
+    ? `${text.slice(0, MAX_STORED_CHARS)}\n… [zkráceno, ${text.length} znaků]`
+    : text;
 }
 
 export interface LoggingLLMProviderOptions {
@@ -67,7 +80,8 @@ export class LoggingLLMProvider implements LLMProvider {
         durationMs,
         'ok',
         result.usage ?? null,
-        null
+        null,
+        result.raw ?? null
       );
       return result;
     } catch (err) {
@@ -76,7 +90,7 @@ export class LoggingLLMProvider implements LLMProvider {
       console.error(
         `[llm ✗] ${this.#label}${ctx} · ${durationMs} ms · ${message}`
       );
-      this.#emit(request, startedAt, durationMs, 'error', null, message);
+      this.#emit(request, startedAt, durationMs, 'error', null, message, null);
       throw err;
     }
   }
@@ -90,7 +104,8 @@ export class LoggingLLMProvider implements LLMProvider {
       promptTokens: number | null;
       completionTokens: number | null;
     } | null,
-    error: string | null
+    error: string | null,
+    response: string | null
   ): void {
     if (!this.#sink) return;
     const { jobId, channelId } = llmCallContext.getStore() ?? {};
@@ -107,7 +122,10 @@ export class LoggingLLMProvider implements LLMProvider {
         status,
         promptTokens: usage?.promptTokens ?? null,
         completionTokens: usage?.completionTokens ?? null,
-        error
+        error,
+        systemPrompt: clip(request.system),
+        userPrompt: clip(request.user),
+        response: clip(response)
       });
     } catch (sinkErr) {
       console.error(

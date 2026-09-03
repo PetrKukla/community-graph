@@ -148,7 +148,12 @@ export const llmCalls = sqliteTable(
     status: text('status').notNull(), // ok|error
     promptTokens: integer('prompt_tokens'),
     completionTokens: integer('completion_tokens'),
-    error: text('error')
+    error: text('error'),
+    // Plné znění volání pro rozklik v AI view. Nezobrazují se v listu (jen v detailu),
+    // pro extrémně dlouhé prompty se ukládá jen useknutý začátek.
+    systemPrompt: text('system_prompt'),
+    userPrompt: text('user_prompt'),
+    response: text('response') // syrový JSON text od modelu; null u chyby
   },
   (table) => [
     index('idx_llm_calls_started').on(table.startedAt),

@@ -45,6 +45,12 @@ export interface LlmCall {
   error: string | null;
 }
 
+export interface LlmCallDetail extends LlmCall {
+  system_prompt: string | null;
+  user_prompt: string | null;
+  response: string | null;
+}
+
 export interface Paginated<T> {
   items: T[];
   next_cursor: string | null;

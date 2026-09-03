@@ -1,5 +1,8 @@
 import { Hono } from 'hono';
-import { listLlmCalls } from '../../db/sqlite/repositories/llmCallRepository';
+import {
+  getLlmCall,
+  listLlmCalls
+} from '../../db/sqlite/repositories/llmCallRepository';
 import { methodNotAllowed } from '../middleware/methodNotAllowed';
 
 export const aiCallsRoute = new Hono();
@@ -19,3 +22,12 @@ aiCallsRoute.get('/ai/calls', (c) => {
 });
 
 aiCallsRoute.all('/ai/calls', methodNotAllowed);
+
+// One call with its full system/user prompt and raw response - the AI view's row detail.
+aiCallsRoute.get('/ai/calls/:id', (c) => {
+  const call = getLlmCall(c.req.param('id'));
+  if (!call) return c.json({ error: 'not_found' }, 404);
+  return c.json(call);
+});
+
+aiCallsRoute.all('/ai/calls/:id', methodNotAllowed);

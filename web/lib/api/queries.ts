@@ -8,6 +8,7 @@ import type {
   JobDetail,
   JobSummary,
   LlmCall,
+  LlmCallDetail,
   Paginated,
   QueryAnswer,
   QueryFilters,
@@ -141,6 +142,18 @@ export function aiCallsQuery(filters: () => AiCallFilters) {
         ),
       initialPageParam: null as string | null,
       getNextPageParam: (last: Paginated<LlmCall>) => last.next_cursor
+    }))
+  );
+}
+
+/** One llm_call with its full prompts + raw response. `enabled` gates the fetch until expanded. */
+export function aiCallQuery(id: () => string, enabled: () => boolean) {
+  return createQuery(
+    toStore(() => ({
+      queryKey: ['ai', 'call', id()] as const,
+      queryFn: () => apiFetch<LlmCallDetail>(`/api/v1/ai/calls/${id()}`),
+      enabled: enabled() && id().length > 0,
+      staleTime: 5 * 60_000
     }))
   );
 }

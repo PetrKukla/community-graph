@@ -18,7 +18,10 @@ export function insertLlmCall(record: LLMCallRecord): void {
       status: record.status,
       promptTokens: record.promptTokens,
       completionTokens: record.completionTokens,
-      error: record.error
+      error: record.error,
+      systemPrompt: record.systemPrompt,
+      userPrompt: record.userPrompt,
+      response: record.response
     })
     .run();
 }
@@ -85,6 +88,36 @@ export interface LlmCallRow {
   error: string | null;
 }
 
+/** Row + the full call text, for the AI-view detail panel (GET /ai/calls/:id). */
+export interface LlmCallDetail extends LlmCallRow {
+  system_prompt: string | null;
+  user_prompt: string | null;
+  response: string | null;
+}
+
+/** One call with its prompts/response, or null when the id is unknown. */
+export function getLlmCall(id: string): LlmCallDetail | null {
+  const r = db.select().from(llmCalls).where(eq(llmCalls.id, id)).get();
+  if (!r) return null;
+  return {
+    id: r.id,
+    provider: r.provider,
+    model: r.model,
+    context: r.context,
+    channel_id: r.channelId,
+    job_id: r.jobId,
+    started_at: r.startedAt,
+    duration_ms: r.durationMs,
+    status: r.status,
+    prompt_tokens: r.promptTokens,
+    completion_tokens: r.completionTokens,
+    error: r.error,
+    system_prompt: r.systemPrompt,
+    user_prompt: r.userPrompt,
+    response: r.response
+  };
+}
+
 export interface ListLlmCallsResult {
   items: LlmCallRow[];
   next_cursor: string | null;
@@ -113,8 +146,23 @@ export function listLlmCalls(params: ListLlmCallsParams): ListLlmCallsResult {
     }
   }
 
+  // Explicit column list: the list view never needs system_prompt/user_prompt/response,
+  // and those blobs would bloat every page. Detail panel fetches them via getLlmCall().
   const rows = db
-    .select()
+    .select({
+      id: llmCalls.id,
+      provider: llmCalls.provider,
+      model: llmCalls.model,
+      context: llmCalls.context,
+      channelId: llmCalls.channelId,
+      jobId: llmCalls.jobId,
+      startedAt: llmCalls.startedAt,
+      durationMs: llmCalls.durationMs,
+      status: llmCalls.status,
+      promptTokens: llmCalls.promptTokens,
+      completionTokens: llmCalls.completionTokens,
+      error: llmCalls.error
+    })
     .from(llmCalls)
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(desc(llmCalls.startedAt), desc(llmCalls.id))
