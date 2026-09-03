@@ -20,7 +20,8 @@ function tomlInt(section: string, key: string, fallback: number): number {
 
 const devPort =
   Number(process.env.VITE_DEV_PORT) || tomlInt('web', 'dev_port', 5173);
-const apiPort = Number(process.env.PORT) || tomlInt('server', 'port', 3004);
+// API port žije v .env (SERVER_PORT), ne v config.toml - viz src/config/env.ts.
+const apiPort = Number(process.env.SERVER_PORT) || 3004;
 const apiTarget = process.env.VITE_API_BASE || `http://localhost:${apiPort}`;
 
 // Single Vite project for the whole frontend - no second package.json, no SvelteKit.

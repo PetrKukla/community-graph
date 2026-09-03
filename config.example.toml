@@ -1,9 +1,6 @@
 # Zkopíruj na `config.toml` (ten je gitignored) a uprav podle potřeby.
 # Laditelné necitlivé parametry; secrety patří do `.env` (viz `.env.example`).
-
-[server]
-port = 3004 # HTTP port služby (API i webové rozhraní z Části 2); override přes PORT v .env
-host = "0.0.0.0" # bind adresa; override přes HOSTNAME v .env
+# Bind adresa/port serveru sem NEPATŘÍ - kvůli Dockeru žijí v `.env` (SERVER_HOST / SERVER_PORT).
 
 [clustering]
 silence_gap_minutes = 30 # M - mezera ticha (minuty), po které se time-block považuje za uzavřený
@@ -18,19 +15,19 @@ model = "Xenova/multilingual-e5-small"
 dimensions = 384
 
 [llm]
-provider = "gemini" # anthropic | openai-compatible | gemini - kredence pro zvoleného providera se berou z .env
-model = "gemma-4-31b-it" # název modelu u zvoleného providera
+provider = "gemini" # anthropic | openai-compatible | gemini | geek-ai-scheduler - kredence/adresa pro zvoleného providera se berou z .env
+model = "gemma-4-31b-it" # název modelu u zvoleného providera (u geek-ai-scheduler = model stažený v Ollamě)
 max_tokens = 8192 # strop na délku odpovědi LLM (jedna diskuze rozdělená do mnoha segmentů může být dlouhá)
 temperature = 0.2 # ignorováno Anthropic adaptérem (modely Claude 4.5+ parametr odmítají)
 max_messages_per_call = 400 # kolik zpráv nejvýš se pošle do jedné enrichment výzvy; nově strop na SOUČET zpráv za celý batch
-request_timeout_ms = 120000 # timeout jednoho volání LLM
+request_timeout_ms = 360000 # timeout jednoho volání LLM; u geek-ai-scheduler MUSÍ být delší než serverový request_timeout_ms scheduleru (výchozí 300000)
 enrichment_batch_target_tokens = 6000 # Část 4.4 - cílový rozpočet promptu na jedno enrichment volání; 0 = batching vypnutý (1 volání/diskuze)
 enrichment_batch_max_discussions = 25 # tvrdý strop na počet clusterů v jednom enrichment volání
 enrichment_batch_retry_individually = true # spadlý batch → zkusit diskuze po jedné, ať jedno špatné volání nezhodí celý batch
 
 [web]
 enabled = true # false = neservírovat web/dist ani /api/v1/stream|stats|graph
-dev_port = 5173 # port Vite dev serveru (dev proxuje /api na [server].port)
+dev_port = 5173 # port Vite dev serveru (dev proxuje /api na SERVER_PORT z .env)
 llm_calls_retention_days = 14 # záznamy llm_calls starší než tolik dní se při zápisu občas smažou
 llm_calls_max_rows = 50000 # strop na počet řádků llm_calls; přebytek se ořízne od nejstarších
 stats_tick_seconds = 2 # jak často se přepočítá levný funnel/totals agregát pro WS klienty

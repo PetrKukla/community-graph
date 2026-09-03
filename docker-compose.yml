@@ -7,7 +7,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     ports:
-      - '${PORT:-3004}:3004'
+      - '${SERVER_PORT:-3004}:${SERVER_PORT:-3004}'
+    # umožní z kontejneru sáhnout na službu běžící na hostu (geek-ai-scheduler, lokální Ollama)
+    # přes http://host.docker.internal:<port>
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     environment:
       NODE_ENV: production
       SQLITE_PATH: /app/data/community-graph.sqlite

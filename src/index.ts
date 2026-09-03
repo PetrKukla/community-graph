@@ -1,5 +1,5 @@
 import { runMigrations } from './db/sqlite/client';
-import { config } from './config/config';
+import { env } from './config/env';
 import { app } from './http/app';
 import { websocket } from './http/ws';
 import { recoverInterruptedJobs } from './jobs/recovery';
@@ -7,8 +7,8 @@ import { recoverInterruptedJobs } from './jobs/recovery';
 runMigrations();
 
 const server = Bun.serve({
-  port: config.server.port,
-  hostname: config.server.host,
+  port: env.SERVER_PORT,
+  hostname: env.SERVER_HOST,
   fetch: app.fetch,
   websocket
 });

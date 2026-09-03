@@ -19,7 +19,7 @@ COPY --from=build /app/web/dist ./web/dist
 COPY package.json bun.lock drizzle.config.ts ./
 COPY src ./src
 COPY migrations ./migrations
-# baseline config; bind-mount or COPY a real config.toml to override, or use PORT/HOSTNAME in .env
+# baseline config; bind-mount or COPY a real config.toml to override. Server bind is SERVER_HOST / SERVER_PORT in .env
 COPY config.example.toml ./config.toml
 
 EXPOSE 3004
