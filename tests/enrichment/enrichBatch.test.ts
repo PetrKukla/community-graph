@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -295,6 +295,20 @@ describe('enrichBatch mapping', () => {
 });
 
 describe('enrichChannel with batching', () => {
+  // Pin the knobs these assertions assume, so a locally tuned config.toml can't break them.
+  const saved = {
+    max: config.llm.enrichment_batch_max_discussions,
+    target: config.llm.enrichment_batch_target_tokens
+  };
+  beforeAll(() => {
+    config.llm.enrichment_batch_max_discussions = 25;
+    config.llm.enrichment_batch_target_tokens = 6000;
+  });
+  afterAll(() => {
+    config.llm.enrichment_batch_max_discussions = saved.max;
+    config.llm.enrichment_batch_target_tokens = saved.target;
+  });
+
   test('40 tiny discussions collapse into 2 LLM calls, all enriched', async () => {
     const channelId = seedChannel(40);
     const { llm, calls } = fakeLlm();
