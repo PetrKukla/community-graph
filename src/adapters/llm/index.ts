@@ -9,6 +9,7 @@ import {
 import { AnthropicLLMAdapter } from './AnthropicLLMAdapter';
 import { OpenAICompatibleLLMAdapter } from './OpenAICompatibleLLMAdapter';
 import { GeminiLLMAdapter } from './GeminiLLMAdapter';
+import { GeekAiSchedulerLLMAdapter } from './GeekAiSchedulerLLMAdapter';
 import { LoggingLLMProvider, type LLMCallRecord } from './LoggingLLMProvider';
 import { SerializingLLMProvider } from './SerializingLLMProvider';
 
@@ -53,6 +54,24 @@ function buildAdapter(): LLMProvider {
         );
       return new GeminiLLMAdapter({
         apiKey: env.LLM_GEMINI_API_KEY,
+        model,
+        maxTokens: max_tokens,
+        temperature,
+        timeoutMs: request_timeout_ms
+      });
+    }
+    case 'geek-ai-scheduler': {
+      if (!env.LLM_GEEK_AI_SCHEDULER_BASE_URL)
+        throw new Error(
+          "config.toml [llm] provider='geek-ai-scheduler' but LLM_GEEK_AI_SCHEDULER_BASE_URL is not set"
+        );
+      if (!env.LLM_GEEK_AI_SCHEDULER_NODE)
+        throw new Error(
+          "config.toml [llm] provider='geek-ai-scheduler' but LLM_GEEK_AI_SCHEDULER_NODE is not set"
+        );
+      return new GeekAiSchedulerLLMAdapter({
+        baseUrl: env.LLM_GEEK_AI_SCHEDULER_BASE_URL,
+        node: env.LLM_GEEK_AI_SCHEDULER_NODE,
         model,
         maxTokens: max_tokens,
         temperature,
