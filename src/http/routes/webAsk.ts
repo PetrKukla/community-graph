@@ -3,11 +3,12 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../db/sqlite/client';
 import { discussionsLocal, messages, users } from '../../db/sqlite/schema';
 import { loadEnrichmentRow } from '../../db/sqlite/repositories/enrichmentRepository';
-import { getGraphStore, isNeo4jConfigured } from '../../adapters/graph';
 import { methodNotAllowed } from '../middleware/methodNotAllowed';
 
 /**
  * Small read endpoints for the web query view (Část 4.3). Mounted only when [web] enabled.
+ * The `/graph/node/by-domain-id` deep-link resolver lives in `routes/graph.ts` with the
+ * rest of the `/graph/*` surface.
  */
 export const webAskRoute = new Hono();
 
@@ -58,31 +59,3 @@ webAskRoute.get('/discussions/:id', (c) => {
   });
 });
 webAskRoute.all('/discussions/:id', methodNotAllowed);
-
-/** Domain id -> Neo4j elementId, so a citation can deep-link to /graph?focus=<discussion_id>. */
-webAskRoute.get('/graph/node/by-domain-id', async (c) => {
-  if (!isNeo4jConfigured())
-    return c.json({ error: 'neo4j_not_configured' }, 503);
-  const label = c.req.query('label') ?? '';
-  const id = c.req.query('id') ?? '';
-  if (!label || !id)
-    return c.json(
-      { error: 'invalid_request', details: 'label and id are required' },
-      400
-    );
-
-  try {
-    const elementId = await getGraphStore().nodeIdByDomainId(label, id);
-    if (!elementId) return c.json({ error: 'not_found' }, 404);
-    return c.json({ element_id: elementId });
-  } catch (err) {
-    return c.json(
-      {
-        error: 'graph_query_failed',
-        message: err instanceof Error ? err.message : String(err)
-      },
-      502
-    );
-  }
-});
-webAskRoute.all('/graph/node/by-domain-id', methodNotAllowed);
