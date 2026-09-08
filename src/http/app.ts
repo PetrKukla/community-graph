@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from 'hono/bun';
 import { config } from '../config/config';
+import { env } from '../config/env';
 import { apiKeyAuth } from './middleware/apiKey';
+import { embedHeaders } from './middleware/embed';
 import { healthRoute } from './routes/health';
 import { ingestRoute } from './routes/ingest';
 import { dictionaryRoute } from './routes/dictionary';
@@ -22,14 +24,22 @@ import { webAskRoute } from './routes/webAsk';
 
 export const app = new Hono();
 
-// In dev the frontend is served by Vite on its own port and proxies /api through; the proxy
-// keeps same-origin so CORS is only needed for the occasional direct browser call. In prod the
-// bundle is served from this same origin, so CORS stays off.
-if (process.env.NODE_ENV !== 'production') {
-  app.use(
-    '/api/*',
-    cors({ origin: `http://localhost:${config.web.dev_port}` })
-  );
+// Allow an approved dashboard to frame the SPA (frame-ancestors CSP). Runs on every
+// response; no-op unless WEB_EMBED_ORIGINS is set. See COMMUNITY_GRAPH_INTEGRATION.md.
+app.use('*', embedHeaders);
+
+// CORS for /api/*: the Vite dev server (dev only) plus any WEB_EMBED_ORIGINS. A
+// server-side proxy on the dashboard needs none of this, but a browser that calls the
+// API directly (dev, or an embedded page fetching cross-origin) does. In prod the bundle
+// is served from this same origin, so with no embed origins configured CORS stays off.
+const corsOrigins = [
+  ...(process.env.NODE_ENV !== 'production'
+    ? [`http://localhost:${config.web.dev_port}`]
+    : []),
+  ...env.WEB_EMBED_ORIGINS
+];
+if (corsOrigins.length > 0) {
+  app.use('/api/*', cors({ origin: corsOrigins }));
 }
 
 app.route('/', healthRoute);
