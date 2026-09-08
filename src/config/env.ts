@@ -20,7 +20,19 @@ const envSchema = z.object({
   // Neo4j - needed only for the graph-write step (krok 3).
   NEO4J_URI: z.string().min(1).default('bolt://localhost:7687'),
   NEO4J_USER: z.string().min(1).default('neo4j'),
-  NEO4J_PASSWORD: z.string().min(1).optional()
+  NEO4J_PASSWORD: z.string().min(1).optional(),
+  // Originy (čárkou oddělené), kterým se povolí vložit web do <iframe> (CSP
+  // frame-ancestors) a povolí CORS na /api/v1/*. Prázdné = jen same-origin.
+  // Viz COMMUNITY_GRAPH_INTEGRATION.md.
+  WEB_EMBED_ORIGINS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      (s ?? '')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean)
+    )
 });
 
 export const env = envSchema.parse(process.env);

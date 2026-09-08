@@ -93,6 +93,7 @@ skončí `failed`; chybějící `NEO4J_PASSWORD` → totéž pro `graph-write`. 
 | `LLM_GEEK_AI_SCHEDULER_BASE_URL` / `_NODE`      | Adresa, kde `geek-ai-scheduler` poslouchá (bez `/v1/schedule`), a povinný identifikátor tohoto uzlu (`node`). Viz `AI_INTEGRATION.md`.  |
 | `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD`   | Připojení k Neo4j (krok 3). Výchozí hodnoty sedí na `docker-compose.yml`.                                                               |
 | `SERVER_HOST` / `SERVER_PORT`                   | Bind adresa a port HTTP serveru (výchozí `0.0.0.0` / `3004`). Vlastní názvy schválně — `HOSTNAME` si v Dockeru drží runtime.            |
+| `WEB_EMBED_ORIGINS`                             | Čárkou oddělené originy, kterým se povolí vložit web do `<iframe>` (CSP `frame-ancestors`) a CORS na `/api/v1/*`. Viz `COMMUNITY_GRAPH_INTEGRATION.md`. |
 | `VITE_API_BASE` / `VITE_API_KEY`                | **Jen dev.** Base URL API a hodnota `API_KEY` pro Vite dev server. V produkci je frontend na stejném originu — nenastavuj.              |
 
 ### `config.toml`
