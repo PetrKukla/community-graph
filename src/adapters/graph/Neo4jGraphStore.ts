@@ -313,17 +313,17 @@ CALL { MATCH (e:Entity) RETURN max(e.created_at) AS entityAt }
 RETURN nodes, edges, topicAt, entityAt
 `;
 
+// OPTIONAL MATCH + grouping (not a CALL subquery) so an isolated node still returns its row.
 const NODE_DETAIL = `
 MATCH (n) WHERE elementId(n) = $id
-CALL {
-  WITH n
-  MATCH (n)-[r]->() RETURN type(r) AS type, 'out' AS direction, count(r) AS count
-  UNION
-  WITH n
-  MATCH (n)<-[r]-() RETURN type(r) AS type, 'in' AS direction, count(r) AS count
-}
-WITH n, collect({ type: type, direction: direction, count: count }) AS relationships
-RETURN n, count{ (n)--() } AS degree, relationships
+OPTIONAL MATCH (n)-[r]-()
+WITH n, type(r) AS type,
+     CASE WHEN r IS NULL THEN null WHEN startNode(r) = n THEN 'out' ELSE 'in' END AS direction
+WITH n, type, direction, count(r) AS count
+WITH n, collect(
+  CASE WHEN type IS NULL THEN null ELSE { type: type, direction: direction, count: count } END
+) AS rels
+RETURN n, count{ (n)--() } AS degree, [x IN rels WHERE x IS NOT NULL] AS relationships
 `;
 
 /** Turn plain label strings into a safe Lucene OR query of quoted phrases. */
