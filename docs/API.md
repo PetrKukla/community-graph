@@ -131,9 +131,18 @@ curl -X POST http://localhost:3004/api/v1/pipeline \
   graph-write`. Sleduje se přes `GET /api/v1/jobs/:id` jako každý jiný job.
 - `result` má bloky `ingest` / `cluster` / `enrich` / `graphWrite`, plněné průběžně po každé
   stage (`progress` jde 0→3, resp. 0→2 při `skip_graph_write`).
-- **Spadne-li stage**, job je `failed` a `error` je `"<stage>: <zpráva>"` (např. `"enrich: …"`);
-  `result` drží stage, které stihly doběhnout. Data z `ingest` + `cluster` zůstávají v SQLite,
-  stage jsou idempotentní → dá se dokončit granulárními endpointy.
+- **Spadne-li stage tvrdě** (výjimka, typicky `clusterize`), job je `failed` a `error` je
+  `"<stage>: <zpráva>"` (např. `"enrich: …"`); `result` drží stage, které stihly doběhnout.
+  Data z `ingest` + `cluster` zůstávají v SQLite, stage jsou idempotentní → dá se dokončit
+  granulárními endpointy.
+- **Dílčí chyby v `enrich` / `graph-write` job neshazují.** Selhání jednotlivé diskuze se
+  chytí, započítá do `result.<stage>.failedCount` + `errors[]`, a job doběhne jako
+  `completed`. Diskuze zůstává ve svém původním stavu (`clustering` / `enriched`), takže ji
+  **další běh pipeline nad tím samým kanálem zkusí znovu** — každá fáze bere jen řádky, které
+  ještě nejsou hotové (`messages.processed`, `discussions_local.status`). Stejné platí pro
+  zprávy, které clusterizace nestihla (výjimka nebo ještě neuzavřený koncový blok): drží
+  `processed = 0` a doclusterují se příště. Volající tedy jen periodicky volá pipeline; nic
+  ručně nedohání.
 - `options.skip_graph_write` (default = `![pipeline].include_graph_write`) skončí po enrichmentu
   a Neo4j se nesáhne. `options.max_messages` → `clusterize`, `max_discussions` → `enrich` i
   `graph-write`.
