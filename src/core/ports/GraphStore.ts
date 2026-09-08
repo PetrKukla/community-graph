@@ -35,6 +35,28 @@ export interface GraphOverviewOptions {
   limit: number;
 }
 
+/** Schema + size of the whole graph, for the dashboard legend / filters / empty-state. */
+export interface GraphMeta {
+  labels: { label: string; count: number }[];
+  relationship_types: { type: string; count: number }[];
+  totals: { nodes: number; edges: number };
+  /** Best-effort "graph last changed" - newest Topic/Entity `created_at`. May be null. */
+  last_write_at: string | null;
+}
+
+/** One node with its adjacent relationship-type breakdown, for the detail panel. */
+export interface GraphNodeDetail extends GraphViewNode {
+  /** Domain id (`id` / `key` / `name` property), for deep-links back into the app. */
+  domain_id: string | null;
+  relationships: { type: string; direction: 'in' | 'out'; count: number }[];
+}
+
+export interface GraphSearchOptions {
+  limit?: number;
+  /** Restrict to these primary labels (User | Channel | Discussion | Topic | Entity | Guild). */
+  labels?: string[];
+}
+
 /** Name changes to push onto nodes that already exist in the graph (Část 4.1). */
 export interface DictionaryNames {
   guilds?: { id: string; name: string | null }[];
@@ -67,12 +89,21 @@ export interface GraphStore {
 
   // --- read-only views for the dashboard ------------------------------------
 
+  /** Schema + counts for the whole graph (labels, relationship types, totals). */
+  graphMeta(): Promise<GraphMeta>;
   /** A sampled subgraph around the most recent discussions, for the first render. */
   graphOverview(options: GraphOverviewOptions): Promise<GraphView>;
   /** Immediate neighbourhood of one node, for expand-on-click. */
   nodeNeighbors(id: string, limit: number): Promise<GraphView>;
+  /** One node with props, degree and its adjacent relationship-type counts, or null. */
+  nodeDetail(id: string): Promise<GraphNodeDetail | null>;
+  /** Connected subgraph within `depth` (1-2) hops of any of the seed elementIds. */
+  subgraph(seedIds: string[], depth: number, limit: number): Promise<GraphView>;
   /** Candidate nodes matching a free-text query (Topic/Entity name, Discussion title, username). */
-  searchNodes(query: string, limit: number): Promise<GraphViewNode[]>;
+  searchNodes(
+    query: string,
+    options: GraphSearchOptions
+  ): Promise<GraphViewNode[]>;
   /** Neo4j elementId of the node with the given label and domain `id` property, or null. For deep-links. */
   nodeIdByDomainId(label: string, domainId: string): Promise<string | null>;
 

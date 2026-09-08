@@ -7,7 +7,10 @@ import neo4j, {
 import { config } from '../../config/config';
 import type {
   DictionaryNames,
+  GraphMeta,
+  GraphNodeDetail,
   GraphOverviewOptions,
+  GraphSearchOptions,
   GraphStore,
   GraphView,
   GraphViewEdge,
@@ -60,6 +63,15 @@ function nodeCaption(label: string, props: Record<string, unknown>): string {
     default:
       return pick('name', 'title', 'id') ?? label;
   }
+}
+
+/** Domain identifier of a node: the `id` / `key` / `name` property, whichever it carries. */
+function nodeDomainId(props: Record<string, unknown>): string | null {
+  for (const k of ['id', 'key', 'name']) {
+    const v = props[k];
+    if (typeof v === 'string' && v.trim()) return v;
+  }
+  return null;
 }
 
 function toViewNode(node: Node, degree: number): GraphViewNode {
@@ -291,6 +303,29 @@ RETURN d.id AS id, d.title AS title, d.summary AS summary, coalesce(d.topics, []
 const VOCAB_TOPICS = `MATCH (t:Topic) RETURN t.name AS name ORDER BY coalesce(t.discussion_count, 0) DESC LIMIT $limit`;
 const VOCAB_ENTITIES = `MATCH (e:Entity) RETURN e.name AS name ORDER BY coalesce(e.mention_count, 0) DESC LIMIT $limit`;
 
+const META_LABELS = `MATCH (n) UNWIND labels(n) AS label RETURN label, count(*) AS count ORDER BY count DESC`;
+const META_REL_TYPES = `MATCH ()-[r]->() RETURN type(r) AS type, count(r) AS count ORDER BY count DESC`;
+const META_TOTALS = `
+CALL { MATCH (n) RETURN count(n) AS nodes }
+CALL { MATCH ()-[r]->() RETURN count(r) AS edges }
+CALL { MATCH (t:Topic) RETURN max(t.created_at) AS topicAt }
+CALL { MATCH (e:Entity) RETURN max(e.created_at) AS entityAt }
+RETURN nodes, edges, topicAt, entityAt
+`;
+
+const NODE_DETAIL = `
+MATCH (n) WHERE elementId(n) = $id
+CALL {
+  WITH n
+  MATCH (n)-[r]->() RETURN type(r) AS type, 'out' AS direction, count(r) AS count
+  UNION
+  WITH n
+  MATCH (n)<-[r]-() RETURN type(r) AS type, 'in' AS direction, count(r) AS count
+}
+WITH n, collect({ type: type, direction: direction, count: count }) AS relationships
+RETURN n, count{ (n)--() } AS degree, relationships
+`;
+
 /** Turn plain label strings into a safe Lucene OR query of quoted phrases. */
 function toLucene(terms: string[]): string {
   return terms
@@ -474,6 +509,43 @@ export class Neo4jGraphStore implements GraphStore {
     };
   }
 
+  async graphMeta(): Promise<GraphMeta> {
+    const session = this.#driver.session({ defaultAccessMode: 'READ' });
+    try {
+      const [labels, relTypes, totals] = await Promise.all([
+        session.run(META_LABELS),
+        session.run(META_REL_TYPES),
+        session.run(META_TOTALS)
+      ]);
+      const t = totals.records[0];
+      const topicAt = (t?.get('topicAt') as string | null) ?? null;
+      const entityAt = (t?.get('entityAt') as string | null) ?? null;
+      const lastWriteAt = [topicAt, entityAt]
+        .filter((s): s is string => Boolean(s))
+        .sort()
+        .at(-1);
+      return {
+        labels: labels.records
+          .map((r) => ({
+            label: r.get('label') as string,
+            count: Number(r.get('count'))
+          }))
+          .filter((l) => KNOWN_LABELS.includes(l.label)),
+        relationship_types: relTypes.records.map((r) => ({
+          type: r.get('type') as string,
+          count: Number(r.get('count'))
+        })),
+        totals: {
+          nodes: Number(t?.get('nodes') ?? 0),
+          edges: Number(t?.get('edges') ?? 0)
+        },
+        last_write_at: lastWriteAt ?? null
+      };
+    } finally {
+      await session.close();
+    }
+  }
+
   async graphOverview(options: GraphOverviewOptions): Promise<GraphView> {
     const limit = Math.max(20, options.limit);
     const discussionLimit = Math.max(10, Math.ceil(limit / 6));
@@ -537,20 +609,118 @@ export class Neo4jGraphStore implements GraphStore {
     }
   }
 
-  async searchNodes(query: string, limit: number): Promise<GraphViewNode[]> {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
+  async nodeDetail(id: string): Promise<GraphNodeDetail | null> {
+    const session = this.#driver.session({ defaultAccessMode: 'READ' });
+    try {
+      const res = await session.run(NODE_DETAIL, { id });
+      const rec = res.records[0];
+      if (!rec) return null;
+      const node = rec.get('n') as Node;
+      const base = toViewNode(node, Number(rec.get('degree')));
+      const relationships = (
+        rec.get('relationships') as {
+          type: string;
+          direction: 'in' | 'out';
+          count: unknown;
+        }[]
+      ).map((r) => ({
+        type: r.type,
+        direction: r.direction,
+        count: Number(r.count)
+      }));
+      return {
+        ...base,
+        domain_id: nodeDomainId(node.properties as Record<string, unknown>),
+        relationships
+      };
+    } finally {
+      await session.close();
+    }
+  }
+
+  async subgraph(
+    seedIds: string[],
+    depth: number,
+    limit: number
+  ): Promise<GraphView> {
+    if (seedIds.length === 0) return { nodes: [], edges: [] };
+    const d = Math.min(Math.max(Math.trunc(depth) || 1, 1), 2);
+    const cap = Math.min(Math.max(Math.trunc(limit) || 250, 1), 750);
     const session = this.#driver.session({ defaultAccessMode: 'READ' });
     try {
       const res = await session.run(
-        `MATCH (n)
-         WHERE (n:Topic AND toLower(n.name) CONTAINS $q)
-            OR (n:Entity AND toLower(n.name) CONTAINS $q)
-            OR (n:Discussion AND n.title IS NOT NULL AND toLower(n.title) CONTAINS $q)
-            OR (n:User AND n.username IS NOT NULL AND toLower(n.username) CONTAINS $q)
-            OR (n:Guild AND n.name IS NOT NULL AND toLower(n.name) CONTAINS $q)
-         RETURN n LIMIT $limit`,
-        { q, limit: neo4j.int(Math.max(1, Math.min(limit, 50))) }
+        `MATCH (seed) WHERE elementId(seed) IN $seedIds
+         MATCH path = (seed)-[*1..${d}]-(m)
+         WITH path LIMIT $limit
+         RETURN nodes(path) AS ns, relationships(path) AS rs`,
+        { seedIds, limit: neo4j.int(cap) }
+      );
+      const nodes = new Map<string, Node>();
+      const edges = new Map<string, Relationship>();
+      for (const rec of res.records) {
+        for (const n of rec.get('ns') as Node[]) nodes.set(n.elementId, n);
+        for (const r of rec.get('rs') as Relationship[])
+          edges.set(r.elementId, r);
+      }
+      // Seeds with no edges at the requested depth still belong in the view.
+      if (nodes.size === 0) {
+        const seedRes = await session.run(
+          'MATCH (seed) WHERE elementId(seed) IN $seedIds RETURN seed',
+          { seedIds }
+        );
+        for (const rec of seedRes.records) {
+          const n = rec.get('seed') as Node;
+          nodes.set(n.elementId, n);
+        }
+      }
+      return this.#assembleView(nodes, edges);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async searchNodes(
+    query: string,
+    options: GraphSearchOptions = {}
+  ): Promise<GraphViewNode[]> {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
+    const wanted = new Set(
+      (options.labels ?? [])
+        .map((l) => l.trim())
+        .filter((l) => KNOWN_LABELS.includes(l))
+    );
+    const clauses: [string, string][] = [
+      ['Topic', '(n:Topic AND toLower(n.name) CONTAINS $q)'],
+      ['Entity', '(n:Entity AND toLower(n.name) CONTAINS $q)'],
+      [
+        'Discussion',
+        '(n:Discussion AND n.title IS NOT NULL AND toLower(n.title) CONTAINS $q)'
+      ],
+      [
+        'User',
+        '(n:User AND n.username IS NOT NULL AND toLower(n.username) CONTAINS $q)'
+      ],
+      [
+        'Channel',
+        '(n:Channel AND n.name IS NOT NULL AND toLower(n.name) CONTAINS $q)'
+      ],
+      [
+        'Guild',
+        '(n:Guild AND n.name IS NOT NULL AND toLower(n.name) CONTAINS $q)'
+      ]
+    ];
+    const where = clauses
+      .filter(([label]) => wanted.size === 0 || wanted.has(label))
+      .map(([, expr]) => expr)
+      .join(' OR ');
+    if (!where) return [];
+    const session = this.#driver.session({ defaultAccessMode: 'READ' });
+    try {
+      const res = await session.run(
+        `MATCH (n) WHERE ${where} RETURN n LIMIT $limit`,
+        { q, limit: neo4j.int(limit) }
       );
       const nodes = res.records.map((rec) => rec.get('n') as Node);
       const degrees = await this.#degrees(nodes.map((n) => n.elementId));
