@@ -49,6 +49,8 @@ const configSchema = z.object({
     dev_port: z.number().int().positive().catch(5173),
     llm_calls_retention_days: z.number().int().positive().catch(14),
     llm_calls_max_rows: z.number().int().positive().catch(50_000),
+    query_history_retention_days: z.number().int().positive().catch(90),
+    query_history_max_rows: z.number().int().positive().catch(2_000),
     stats_tick_seconds: z.number().positive().catch(2),
     graph_overview_limit: z.number().int().positive().catch(400)
   }),
