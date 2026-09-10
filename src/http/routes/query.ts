@@ -8,6 +8,12 @@ import {
   GraphUnavailableError
 } from '../../core/query/queryPipeline';
 import { sqliteContextSource } from '../../db/sqlite/repositories/queryRepository';
+import {
+  clearQueryHistory,
+  insertQueryHistory,
+  listQueryHistory,
+  maybePruneQueryHistory
+} from '../../db/sqlite/repositories/queryHistoryRepository';
 import { methodNotAllowed } from '../middleware/methodNotAllowed';
 
 const bodySchema = z.object({
@@ -71,6 +77,18 @@ queryRoute.post('/query', async (c) => {
         sqlite: sqliteContextSource
       }
     );
+    // Historie pro webový panel - selhání zápisu nesmí shodit odpověď.
+    insertQueryHistory({
+      question: parsed.data.question,
+      filters: parsed.data.filters ?? null,
+      answer: answer as unknown as Record<string, unknown>
+    });
+    try {
+      maybePruneQueryHistory();
+    } catch {
+      /* prune je best-effort */
+    }
+
     return c.json(answer);
   } catch (err) {
     if (err instanceof GraphUnavailableError) {
@@ -90,3 +108,22 @@ queryRoute.post('/query', async (c) => {
 });
 
 queryRoute.all('/query', methodNotAllowed);
+
+/** Historie zodpovězených dotazů, nejnovější první, keyset paginace přes `cursor`. */
+queryRoute.get('/query/history', (c) => {
+  const limitRaw = Number(c.req.query('limit'));
+  return c.json(
+    listQueryHistory({
+      limit: Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 30,
+      cursor: c.req.query('cursor')
+    })
+  );
+});
+
+/** Smaže celou historii dotazů. */
+queryRoute.delete('/query/history', (c) => {
+  const deleted = clearQueryHistory();
+  return c.json({ deleted });
+});
+
+queryRoute.all('/query/history', methodNotAllowed);

@@ -161,6 +161,29 @@ export const llmCalls = sqliteTable(
   ]
 );
 
+// Historie zodpovězených dotazů (POST /api/v1/query) pro panel "Historie" ve webu.
+// Ne audit - retenční cap ji ořezává na zápisu, stejně jako llm_calls.
+export const queryHistory = sqliteTable(
+  'query_history',
+  {
+    id: text('id').primaryKey(), // uuid
+    question: text('question').notNull(),
+    filters: text('filters', { mode: 'json' }).$type<{
+      channel_ids?: string[];
+      discussion_types?: string[];
+      since?: string;
+    } | null>(),
+    // celý QueryAnswer, ať jde záznam znovu zobrazit bez dalšího volání
+    answer: text('answer', { mode: 'json' })
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    confidence: text('confidence').notNull(), // high|medium|low
+    usedDiscussionCount: integer('used_discussion_count').notNull().default(0),
+    createdAt: text('created_at').notNull() // ISO8601
+  },
+  (table) => [index('idx_query_history_created').on(table.createdAt)]
+);
+
 export const discussionEnrichment = sqliteTable('discussion_enrichment', {
   discussionId: text('discussion_id')
     .primaryKey()

@@ -30,6 +30,8 @@ enabled = true # false = neservírovat web/dist ani /api/v1/stream|stats|graph
 dev_port = 5173 # port Vite dev serveru (dev proxuje /api na SERVER_PORT z .env)
 llm_calls_retention_days = 14 # záznamy llm_calls starší než tolik dní se při zápisu občas smažou
 llm_calls_max_rows = 50000 # strop na počet řádků llm_calls; přebytek se ořízne od nejstarších
+query_history_retention_days = 90 # záznamy query_history starší než tolik dní se při zápisu občas smažou
+query_history_max_rows = 2000 # strop na počet řádků query_history; přebytek se ořízne od nejstarších
 stats_tick_seconds = 2 # jak často se přepočítá levný funnel/totals agregát pro WS klienty
 graph_overview_limit = 400 # cílový počet uzlů v prvním vykreslení grafu
 
